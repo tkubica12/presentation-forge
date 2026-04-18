@@ -1,0 +1,8 @@
+fonts:
+  heading: "Inter"
+  body: "Inter"
+
+colors:
+  background: "FAF7F2"
+  foreground: "2A1F18"
+  accent: "B8651C"

@@ -1,0 +1,40 @@
+# Common requirements baked into every prompt for every image.
+common_requirements: |
+  Brand: "Aurora Coffee Co.". Lifestyle product photography for an e-commerce
+  hero. Always include the matte-black Aurora ceramic mug clearly visible,
+  steam gently rising. Warm, inviting mood, shallow depth of field, no text or
+  logos rendered in the image.
+
+# Optional: how prompt variations should differ. If omitted, sensible defaults
+# (lighting, angle, lens, props) are used.
+variations_description: |
+  Each variation should explore a distinct setting (urban café, sunlit kitchen,
+  rainy window, forest cabin, library nook), a different time of day and
+  lighting mood, and pair the mug with a complementary prop appropriate to the
+  scene.
+
+variations_count: 4
+instances_per_prompt: 2
+parallelism: 24
+parallelism_per_model: 12
+size: 1024x1024
+quality: high
+output_dir: ./output
+
+# Both models will run for every prompt+instance combo.
+# Note: MAI-Image-2 does NOT accept input images and is skipped automatically
+# when an input_image is provided.
+models:
+  - MAI-Image-2
+  - gpt-image-1.5
+
+images:
+  - name: morning-ritual
+    description: >
+      The Aurora ceramic mug filled with freshly poured espresso, sitting on a
+      reclaimed-oak countertop next to an open notebook and a fountain pen.
+  - name: afternoon-pause
+    description: >
+      The Aurora ceramic mug filled with a frothy cappuccino, set on a marble
+      side table next to a half-read paperback novel and a pair of reading
+      glasses.

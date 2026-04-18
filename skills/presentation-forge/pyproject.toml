@@ -1,0 +1,23 @@
+[project]
+name = "presentation-forge"
+version = "0.1.0"
+description = "Opinionated agent-driven framework for building presentations from story + structured slides + image briefs."
+readme = "SKILL.md"
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.1",
+    "python-pptx>=1.0",
+    "pyyaml>=6.0",
+    "pillow>=10.0",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+forge = "presentation_forge.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/presentation_forge"]

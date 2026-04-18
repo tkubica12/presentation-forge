@@ -1,0 +1,17 @@
+common_requirements: |
+  Cohesive editorial photography style for the Aurora Coffee brand:
+  warm morning light, shallow depth of field, muted earth-tone palette,
+  hand-made ceramics, slight steam, no text or logos in frame.
+  Photorealistic, high resolution, magazine-quality.
+variations_description: |
+  Vary the camera angle, time of day within the morning hours,
+  and secondary props while preserving the warm editorial mood.
+variations_per_image: 2
+instances_per_variation: 1
+images:
+  - name: morning-ritual
+    description: |
+      A close-up of a hand-thrown ceramic mug of black coffee on a worn
+      wooden table by a sunlit kitchen window. Steam rises gently. A
+      paperback book is open beside the mug. The mood is unhurried,
+      private, intimate.

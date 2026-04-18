@@ -1,0 +1,18 @@
+common_requirements: |
+  Photorealistic studio product shot of a single object on a clean seamless
+  light-grey background, soft diffused lighting, high resolution.
+
+variations_count: 1
+instances_per_prompt: 1
+parallelism: 4
+size: 1024x1024
+quality: medium
+output_dir: ./output-smoke
+
+models:
+  - MAI-Image-2
+  - gpt-image-1.5
+
+images:
+  - name: red-apple
+    description: A single glossy red apple with a green leaf on its stem.
