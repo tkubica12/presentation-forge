@@ -37,6 +37,7 @@ class Task:
     instance_index: int
     prompt: str
     output_path: Path
+    size: str  # resolved per-image or global size
 
 
 def _output_path(
@@ -113,6 +114,7 @@ def _build_tasks(
 ) -> list[Task]:
     tasks: list[Task] = []
     for image in cfg.images:
+        resolved_size = image.size or cfg.size
         for v_idx, p in enumerate(prompts[image.name]):
             for i_idx in range(cfg.instances_per_prompt):
                 for model in cfg.models:
@@ -126,6 +128,7 @@ def _build_tasks(
                             output_path=_output_path(
                                 out_dir, image.name, model, v_idx, i_idx
                             ),
+                            size=resolved_size,
                         )
                     )
     return tasks
@@ -162,7 +165,7 @@ async def _run_task(
                     deployment=task.model,
                     token_cache=token_cache,
                     prompt=task.prompt,
-                    size=cfg.size,
+                    size=task.size,
                     client=client,
                 )
             else:
@@ -171,7 +174,7 @@ async def _run_task(
                     deployment=task.model,
                     token_cache=token_cache,
                     prompt=task.prompt,
-                    size=cfg.size,
+                    size=task.size,
                     quality=cfg.quality,
                     input_image_path=input_image_prepared,
                     client=client,

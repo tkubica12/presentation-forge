@@ -25,6 +25,8 @@ class Theme:
     metadata: dict[str, str] = field(default_factory=dict)
     # Optional defaults block forwarded to hve-core's `style.yaml`.
     defaults: dict[str, Any] = field(default_factory=dict)
+    # Optional per-layout background colour overrides (layout name -> hex).
+    layout_backgrounds: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], base: Path) -> "Theme":
@@ -48,6 +50,9 @@ class Theme:
         defaults_raw = data.get("defaults") or {}
         if not isinstance(defaults_raw, dict):
             raise ValueError("theme.yaml: `defaults` must be a mapping")
+        bg_raw = data.get("layout_backgrounds") or {}
+        if not isinstance(bg_raw, dict):
+            raise ValueError("theme.yaml: `layout_backgrounds` must be a mapping")
         return cls(
             template=(base / tpl).resolve() if tpl else None,
             fonts=dict(data.get("fonts") or {}),
@@ -56,6 +61,7 @@ class Theme:
             layouts=layouts,
             metadata={str(k): str(v) for k, v in metadata_raw.items()},
             defaults=dict(defaults_raw),
+            layout_backgrounds={str(k): str(v) for k, v in bg_raw.items()},
         )
 
 

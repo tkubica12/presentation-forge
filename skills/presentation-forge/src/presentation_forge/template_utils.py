@@ -59,3 +59,64 @@ def normalize_template_to_pptx(template_path: Path, dest_path: Path) -> Path:
                 zout.writestr(item, data)
     dest_path.write_bytes(buf.getvalue())
     return dest_path
+
+
+def override_layout_backgrounds(
+    pptx_path: Path,
+    overrides: dict[str, str],
+) -> None:
+    """Override slide-layout backgrounds in-place.
+
+    *overrides* maps layout names (e.g. ``"Photo Slide 1"``) to hex
+    colour strings (e.g. ``"F2F2F2"``). For each matched layout a
+    full-slide solid rectangle is inserted **behind** all other shapes
+    so it covers any inherited master artwork (like the Azure template's
+    branded grid group).
+    """
+    if not overrides:
+        return
+
+    from lxml import etree
+
+    from pptx import Presentation
+    from pptx.oxml.ns import qn
+
+    prs = Presentation(str(pptx_path))
+    slide_w = prs.slide_width  # EMU
+    slide_h = prs.slide_height
+
+    for layout in prs.slide_layouts:
+        hex_color = overrides.get(layout.name)
+        if hex_color is None:
+            continue
+
+        # Build a full-slide rectangle as raw OOXML and inject it at the
+        # front of the shape tree so it sits behind placeholders.
+        sp_tree = layout.placeholders._element.getparent()
+        max_id = max(
+            (int(e.get("id", "0")) for e in sp_tree.iter(qn("p:cNvPr"))),
+            default=100,
+        ) + 1
+
+        rect_xml = (
+            f'<p:sp xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"'
+            f' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+            f' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            f'<p:nvSpPr>'
+            f'  <p:cNvPr id="{max_id}" name="BgOverride"/>'
+            f'  <p:cNvSpPr/><p:nvPr/>'
+            f'</p:nvSpPr>'
+            f'<p:spPr>'
+            f'  <a:xfrm><a:off x="0" y="0"/>'
+            f'  <a:ext cx="{slide_w}" cy="{slide_h}"/></a:xfrm>'
+            f'  <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+            f'  <a:solidFill><a:srgbClr val="{hex_color}"/></a:solidFill>'
+            f'  <a:ln w="0"><a:noFill/></a:ln>'
+            f'</p:spPr>'
+            f'</p:sp>'
+        )
+        rect_el = etree.fromstring(rect_xml)
+        # Insert after grpSpPr (index 1) to be the first shape.
+        sp_tree.insert(2, rect_el)
+
+    prs.save(str(pptx_path))

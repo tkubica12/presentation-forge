@@ -11,6 +11,7 @@ from presentation_forge.layouts import Layout
 from presentation_forge.render_adapter import (
     DEFAULT_AZURE_LAYOUTS,
     DEFAULT_PLACEHOLDER_ROLES,
+    _compute_fill_crop,
     materialize_workspace,
     slide_to_content,
 )
@@ -116,16 +117,30 @@ def test_full_bleed_image_with_image_uses_fallback_dims():
     s = _slide(layout="full-bleed-image", title="hero", image_ref="x")
     c = slide_to_content(s, image_paths=[Path("/tmp/x.png")])
     elems = c["elements"]
-    assert len(elems) == 1 and elems[0]["type"] == "image"
-    # Falls back to full canvas when no template provided.
+    # Image + dark overlay + title textbox
+    assert len(elems) == 3
+    assert elems[0]["type"] == "image"
     assert elems[0]["left"] == 0.0
     assert elems[0]["top"] == 0.0
+    # Overlay for contrast
+    assert elems[1]["type"] == "shape"
+    # Title is a textbox on top (not a placeholder)
+    assert elems[2]["type"] == "textbox"
+    assert elems[2]["text"] == "hero"
+    # Title placeholder should be absent
+    roles = DEFAULT_PLACEHOLDER_ROLES["full-bleed-image"]
+    assert roles.title not in c.get("placeholders", {})
 
 
-def test_full_bleed_image_without_image_emits_nothing():
+def test_full_bleed_image_without_image_emits_title_textbox_only():
     s = _slide(layout="full-bleed-image", title="hero", image_ref="x")
     c = slide_to_content(s, image_paths=[])
-    assert "elements" not in c
+    # Overlay + title textbox even without image
+    elems = c.get("elements", [])
+    assert len(elems) == 2
+    assert elems[0]["type"] == "shape"
+    assert elems[1]["type"] == "textbox"
+    assert elems[1]["text"] == "hero"
 
 
 def test_two_column_partitions_bullets_even_odd():
@@ -180,10 +195,12 @@ def test_image_grid_lays_out_three_tiles():
     # Tiles march left-to-right with growing 'left'
     lefts = [e["left"] for e in elems]
     assert lefts == sorted(lefts)
-    # All same width and height
+    # All same width and height (landscape filmstrip tiles)
     widths = {e["width"] for e in elems}
     heights = {e["height"] for e in elems}
     assert len(widths) == 1 and len(heights) == 1
+    # Landscape: width > height
+    assert list(widths)[0] > list(heights)[0]
 
 
 def test_image_grid_caps_at_three_images():
@@ -220,6 +237,9 @@ def test_label_suffix_alone_becomes_title_when_slide_has_no_title():
     )
     c = slide_to_content(s, label_suffix="(no images yet)")
     assert c["title"] == "(no images yet)"
+    # Full-bleed title is emitted as a textbox element (after overlay)
+    elems = c.get("elements", [])
+    assert any(e["type"] == "textbox" and e["text"] == "(no images yet)" for e in elems)
 
 
 def test_extra_elements_passthrough_appended_after_adapter_elements():
@@ -276,6 +296,46 @@ def test_empty_bullets_emit_no_body_placeholder():
     # all bullets were blank; expect no body key
     roles = DEFAULT_PLACEHOLDER_ROLES["bullets"]
     assert roles.body not in c.get("placeholders", {})
+
+
+# ---------------------------------------------------------------------------
+# _compute_fill_crop — aspect ratio crop computation
+# ---------------------------------------------------------------------------
+
+
+def test_fill_crop_square_on_square_returns_none(tmp_path, png_bytes):
+    """1:1 image on a 1:1 target → no crop."""
+    img = tmp_path / "square.png"
+    img.write_bytes(png_bytes())  # 2×2 pixel test PNG
+    assert _compute_fill_crop(img, 3.8, 3.8) is None
+
+
+def test_fill_crop_landscape_on_widescreen_crops_top_bottom(tmp_path):
+    """3:2 image (1536×1024) on 16:9 target → crop top/bottom."""
+    from PIL import Image
+
+    img_path = tmp_path / "landscape.png"
+    Image.new("RGB", (1536, 1024), "blue").save(str(img_path))
+    crop = _compute_fill_crop(img_path, 13.333, 7.5)
+    assert crop is not None
+    # Image is taller than 16:9 → crop top/bottom
+    assert "t" in crop and "b" in crop
+    assert "l" not in crop and "r" not in crop
+    # 3:2 on 16:9: visible = 1.5/1.778 ≈ 0.844, crop_each ≈ 7.81%
+    assert 7000 < crop["t"] < 9000
+    assert crop["t"] == crop["b"]
+
+
+def test_fill_crop_wide_on_square_crops_left_right(tmp_path):
+    """3:2 image on 1:1 target → crop left/right."""
+    from PIL import Image
+
+    img_path = tmp_path / "wide.png"
+    Image.new("RGB", (1536, 1024), "red").save(str(img_path))
+    crop = _compute_fill_crop(img_path, 3.8, 3.8)
+    assert crop is not None
+    assert "l" in crop and "r" in crop
+    assert "t" not in crop and "b" not in crop
 
 
 def test_default_layout_mapping_covers_every_layout():
@@ -393,7 +453,7 @@ def test_materialize_workspace_emits_template_block_when_set(
     assert style["layouts"]["title"] == "Title Slide 1"
 
 
-def test_materialize_workspace_full_bleed_uses_template_picture_dims(
+def test_materialize_workspace_full_bleed_uses_textbox_for_title(
     make_presentation_dir, populate_image_variants, microsoft_template_path, tmp_path
 ):
     folder = make_presentation_dir("deck", with_template=True)
@@ -412,10 +472,11 @@ def test_materialize_workspace_full_bleed_uses_template_picture_dims(
         (paths.slide_dirs[1] / "content.yaml").read_text(encoding="utf-8")
     )
     elems = hero_content["elements"]
-    assert len(elems) == 1 and elems[0]["type"] == "image"
-    # When the template is present, the picture-placeholder dims kick in,
-    # and they are NOT the full-canvas fallback (which would be 0/0/13.333/7.5).
-    assert (elems[0]["left"], elems[0]["top"]) != (0.0, 0.0) or (
-        elems[0]["width"],
-        elems[0]["height"],
-    ) != (13.333, 7.5)
+    # Image + overlay + title textbox
+    assert len(elems) == 3
+    assert elems[0]["type"] == "image"
+    assert elems[1]["type"] == "shape"
+    assert elems[2]["type"] == "textbox"
+    # Full-bleed image covers entire canvas
+    assert elems[0]["left"] == 0.0
+    assert elems[0]["width"] == pytest.approx(13.333, abs=0.01)

@@ -128,7 +128,7 @@ def _write_minimal_presentation_files(folder: Path, *, with_template: bool) -> N
             "two-column": "Two Column Bullet text",
             "quote": "Quote",
             "comparison": "Two Column Bullet text",
-            "image-grid": "Three picture content",
+            "image-grid": "Three Filmstrip Photos",
             "appendix-references": "Title & Non-bulleted text",
         }
         theme["metadata"] = {"author": "tests", "subject": "test deck"}

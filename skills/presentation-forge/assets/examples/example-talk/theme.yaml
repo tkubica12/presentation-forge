@@ -12,8 +12,13 @@ layouts:
   two-column: "Two Column Bullet text"
   quote: "Quote"
   comparison: "Two Column Bullet text"
-  image-grid: "Three picture content"
+  image-grid: "Three Filmstrip Photos"
   appendix-references: "Title & Non-bulleted text"
+
+# Override blue backgrounds on photo layouts to neutral gray.
+layout_backgrounds:
+  "Photo Slide 1": "F2F2F2"
+  "Photo Slide 2": "F2F2F2"
 
 metadata:
   title: "Aurora Coffee"

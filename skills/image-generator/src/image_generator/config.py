@@ -22,6 +22,7 @@ DEFAULT_PROMPT_MODEL = "gpt-5.4"
 class ImageSpec:
     name: str
     description: str
+    size: Optional[str] = None  # per-image size override (e.g., "1536x1024")
 
 
 @dataclass
@@ -52,7 +53,14 @@ class JobConfig:
         images_raw = data.get("images") or []
         if not images_raw:
             raise ValueError("YAML must contain non-empty 'images' list")
-        images = [ImageSpec(name=str(i["name"]), description=str(i["description"])) for i in images_raw]
+        images = [
+            ImageSpec(
+                name=str(i["name"]),
+                description=str(i["description"]),
+                size=i.get("size"),
+            )
+            for i in images_raw
+        ]
 
         kwargs = {k: v for k, v in data.items() if k != "images"}
         kwargs["images"] = images

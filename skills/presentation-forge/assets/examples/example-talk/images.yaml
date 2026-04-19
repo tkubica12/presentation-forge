@@ -8,8 +8,10 @@ variations_description: |
   and secondary props while preserving the warm editorial mood.
 variations_count: 2
 instances_per_prompt: 1
+size: "1024x1024"
 images:
   - name: morning-ritual
+    size: "1536x1024"
     description: |
       A close-up of a hand-thrown ceramic mug of black coffee on a worn
       wooden table by a sunlit kitchen window. Steam rises gently. A
@@ -21,12 +23,14 @@ images:
       cloth next to a hand-made ceramic pour-over dripper. Warm side
       light from a window. The palette is brown, cream, and charcoal.
   - name: pour-over-detail
+    size: "1536x1024"
     description: |
       Extreme close-up of hot water being poured from a gooseneck
       kettle into a ceramic pour-over filter. The stream of water is
       in sharp focus; everything else is a warm bokeh. Steam curls
       upward. Cinematic, slow-motion feel.
   - name: roastery-moments
+    size: "1536x1024"
     description: |
       A candid wide shot inside a small-batch coffee roastery. A
       person in an apron checks a drum roaster. Burlap sacks of green

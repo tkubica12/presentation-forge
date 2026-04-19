@@ -59,7 +59,7 @@ DEFAULT_AZURE_LAYOUTS: dict[str, str] = {
     Layout.TWO_COLUMN.value: "Two Column Bullet text",
     Layout.QUOTE.value: "Quote",
     Layout.COMPARISON.value: "Two Column Bullet text",
-    Layout.IMAGE_GRID.value: "Three picture content",
+    Layout.IMAGE_GRID.value: "Three Filmstrip Photos",
     Layout.APPENDIX_REFERENCES.value: "Title & Non-bulleted text",
 }
 
@@ -175,9 +175,64 @@ def _picture_placeholder_dims(
     return None
 
 
-# ---------------------------------------------------------------------------
-# Per-slide content.yaml emission
-# ---------------------------------------------------------------------------
+def _compute_fill_crop(
+    image_path: Path, target_w: float, target_h: float
+) -> dict[str, int] | None:
+    """Compute OOXML ``a:srcRect`` crop values for fill-mode display.
+
+    Compares the actual pixel aspect ratio of *image_path* against the
+    *target_w*/*target_h* ratio (in inches) and returns a dict with keys
+    ``l``, ``t``, ``r``, ``b`` (values in 1/1000 percent, i.e. 7810 ≈ 7.81%)
+    suitable for hve-core's ``crop`` element attribute.  Returns ``None``
+    when no meaningful crop is needed (aspect ratios already match).
+    """
+    from PIL import Image
+
+    with Image.open(image_path) as img:
+        iw, ih = img.size
+
+    img_ratio = iw / ih
+    tgt_ratio = target_w / target_h
+
+    # If within 2% → no crop
+    if abs(img_ratio - tgt_ratio) / max(img_ratio, tgt_ratio) < 0.02:
+        return None
+
+    if img_ratio > tgt_ratio:
+        # Image wider than target → crop left/right
+        visible = tgt_ratio / img_ratio
+        crop_each = int(round((1 - visible) / 2 * 100_000))
+        return {"l": crop_each, "r": crop_each}
+    else:
+        # Image taller than target → crop top/bottom
+        visible = img_ratio / tgt_ratio
+        crop_each = int(round((1 - visible) / 2 * 100_000))
+        return {"t": crop_each, "b": crop_each}
+
+
+def _image_element(
+    image_name: str,
+    left: float,
+    top: float,
+    width: float,
+    height: float,
+    image_path: Path | None = None,
+    images_dir_name: str = "images",
+) -> dict[str, Any]:
+    """Build an hve-core image element dict with optional fill-crop."""
+    elem: dict[str, Any] = {
+        "type": "image",
+        "path": f"{images_dir_name}/{image_name}",
+        "left": left,
+        "top": top,
+        "width": width,
+        "height": height,
+    }
+    if image_path is not None and image_path.exists():
+        crop = _compute_fill_crop(image_path, width, height)
+        if crop:
+            elem["crop"] = crop
+    return elem
 
 
 def slide_to_content(
@@ -248,10 +303,7 @@ def slide_to_content(
         body_lines = _bullets_to_lines(slide.bullets)
         if body_lines and roles.body is not None:
             placeholders[roles.body] = body_lines
-        # Image goes into the picture-placeholder area of "Photo Slide 1"
-        # (right half: 6.67, 0, 6.67×7.5). We look up the actual dims from
-        # the template when available; otherwise fall back to sensible
-        # defaults for this layout.
+        # Image goes into the picture-placeholder area (right half).
         if image_paths:
             dims = _picture_placeholder_dims(
                 template_path,
@@ -259,38 +311,49 @@ def slide_to_content(
                 roles.picture if roles.picture is not None else 10,
             ) if template_path else None
             if dims is None:
-                # Fallback: right half of slide
                 dims = (6.67, 0.0, 6.67, SLIDE_H)
             left, top, w, h = dims
-            elements.append({
-                "type": "image",
-                "path": f"{images_dir_name}/{image_paths[0].name}",
-                "left": left,
-                "top": top,
-                "width": w,
-                "height": h,
-            })
+            elements.append(_image_element(
+                image_paths[0].name, left, top, w, h,
+                image_path=image_paths[0],
+                images_dir_name=images_dir_name,
+            ))
 
     elif slide.layout is Layout.FULL_BLEED_IMAGE:
+        # Full-bleed: image covers entire canvas. Title is emitted as a
+        # textbox element AFTER the image so it renders on top (z-order).
         if image_paths:
-            dims = _picture_placeholder_dims(
-                template_path,
-                layouts_map.get(layout_value, DEFAULT_AZURE_LAYOUTS[layout_value])
-                if isinstance(
-                    layouts_map.get(layout_value, DEFAULT_AZURE_LAYOUTS[layout_value]),
-                    str,
-                )
-                else DEFAULT_AZURE_LAYOUTS[layout_value],
-                roles.picture if roles.picture is not None else 10,
-            ) or (0.0, 0.0, SLIDE_W, SLIDE_H)
-            left, top, w, h = dims
+            elements.append(_image_element(
+                image_paths[0].name, 0.0, 0.0, SLIDE_W, SLIDE_H,
+                image_path=image_paths[0],
+                images_dir_name=images_dir_name,
+            ))
+        # Remove title from placeholders — we add it as a textbox on top.
+        placeholders.pop(roles.title, None) if roles.title is not None else None
+        v = _placeholder_value(title_text)
+        if v:
+            # Semi-transparent dark overlay for text readability.
             elements.append({
-                "type": "image",
-                "path": f"{images_dir_name}/{image_paths[0].name}",
-                "left": left,
-                "top": top,
-                "width": w,
-                "height": h,
+                "type": "shape",
+                "shape_type": "rectangle",
+                "left": 0.0,
+                "top": 3.5,
+                "width": SLIDE_W,
+                "height": 4.0,
+                "fill": {"color": "#000000", "alpha": 40},
+                "line": {"width": 0},
+            })
+            elements.append({
+                "type": "textbox",
+                "left": 0.4,
+                "top": 4.5,
+                "width": SLIDE_W - 0.8,
+                "height": 3.0,
+                "text": v,
+                "font_size": 40,
+                "font_bold": True,
+                "font_color": "FFFFFF",
+                "vertical_alignment": "bottom",
             })
 
     elif slide.layout in (Layout.TWO_COLUMN, Layout.COMPARISON):
@@ -314,13 +377,11 @@ def slide_to_content(
             placeholders[roles.secondary] = f"\u2014 {attribution}"
 
     elif slide.layout is Layout.IMAGE_GRID:
-        # "Three picture content" has PICTURE placeholders at known coords.
-        # We look them up from the template when available; otherwise fall
-        # back to hardcoded positions from the Azure template.
+        # "Three Filmstrip Photos" has landscape PICTURE placeholders.
         _GRID_FALLBACK = [
-            (0.64, 2.22, 3.8, 3.8),   # idx 13
-            (4.77, 2.22, 3.8, 3.8),   # idx 14
-            (8.89, 2.22, 3.8, 3.8),   # idx 15
+            (0.27, 2.72, 4.40, 2.50),   # idx 13
+            (4.47, 2.72, 4.40, 2.50),   # idx 14
+            (8.67, 2.72, 4.40, 2.50),   # idx 15
         ]
         grid_pic_indices = [13, 14, 15]
         grid_layout_name = layouts_map.get(layout_value, DEFAULT_AZURE_LAYOUTS.get(layout_value, ""))
@@ -332,14 +393,11 @@ def slide_to_content(
         chosen = image_paths[:3]
         for i, path in enumerate(chosen):
             left, top, w, h = grid_dims[i]
-            elements.append({
-                "type": "image",
-                "path": f"{images_dir_name}/{path.name}",
-                "left": left,
-                "top": top,
-                "width": w,
-                "height": h,
-            })
+            elements.append(_image_element(
+                path.name, left, top, w, h,
+                image_path=path,
+                images_dir_name=images_dir_name,
+            ))
 
     # Append the slide's own opt-in `extra_elements` passthrough. These are
     # spliced verbatim — agents/users own validity. Drawn last so they sit
@@ -437,10 +495,12 @@ def materialize_workspace(
 
     template_path: Path | None = None
     if pres.theme.template:
-        from .template_utils import normalize_template_to_pptx
+        from .template_utils import normalize_template_to_pptx, override_layout_backgrounds
 
         normalized = workdir / "template.pptx"
         template_path = normalize_template_to_pptx(pres.theme.template, normalized)
+        if pres.theme.layout_backgrounds:
+            override_layout_backgrounds(template_path, pres.theme.layout_backgrounds)
 
     style = _build_style(pres, normalized_template_path=template_path)
     style_path = global_dir / "style.yaml"

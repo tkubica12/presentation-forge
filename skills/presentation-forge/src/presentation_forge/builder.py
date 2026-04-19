@@ -73,6 +73,39 @@ def _find_uv() -> str:
     return uv
 
 
+def _fix_fullbleed_zorder(pptx_path: Path) -> None:
+    """Move full-canvas picture shapes behind all other shapes.
+
+    hve-core adds image *elements* after placeholders, so they sit on
+    top of the title text.  This post-pass reorders full-bleed images to
+    be the first shapes in the shape tree, restoring the expected z-order.
+    """
+    from pptx import Presentation as PptxPresentation
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    prs = PptxPresentation(str(pptx_path))
+    canvas_w = prs.slide_width
+    canvas_h = prs.slide_height
+    threshold = 0.85
+
+    changed = False
+    for slide in prs.slides:
+        sp_tree = slide.shapes._spTree
+        for shape in list(slide.shapes):
+            if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                w_ratio = shape.width / canvas_w if canvas_w else 0
+                h_ratio = shape.height / canvas_h if canvas_h else 0
+                if w_ratio > threshold and h_ratio > threshold:
+                    elem = shape._element
+                    sp_tree.remove(elem)
+                    # Insert after nvGrpSpPr (idx 0) and grpSpPr (idx 1)
+                    sp_tree.insert(2, elem)
+                    changed = True
+
+    if changed:
+        prs.save(str(pptx_path))
+
+
 def run_images(pres: Presentation, *, parallelism: int | None = None) -> None:
     """Shell out to the sibling image-generator skill."""
     if not IMAGE_GENERATOR_DIR.exists():
@@ -120,6 +153,7 @@ def _render_one(pres: Presentation, *, mode: str, output: Path) -> Path:
         raise RuntimeError(f"build_deck.py exited with code {rc}")
     if not output.exists():
         raise RuntimeError(f"build_deck.py did not produce expected output: {output}")
+    _fix_fullbleed_zorder(output)
     return output
 
 

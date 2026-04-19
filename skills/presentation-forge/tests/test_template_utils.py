@@ -11,6 +11,7 @@ from presentation_forge.template_utils import (
     POTX_CONTENT_TYPE,
     PPTX_CONTENT_TYPE,
     normalize_template_to_pptx,
+    override_layout_backgrounds,
 )
 
 
@@ -86,3 +87,34 @@ def test_real_microsoft_template_round_trips(microsoft_template_path, tmp_path):
     layout_names = {layout.name for layout in prs.slide_layouts}
     for required in ("Title Slide 1", "Title and Content", "Quote"):
         assert required in layout_names, f"layout {required!r} missing"
+
+
+def test_override_layout_backgrounds_changes_fill(microsoft_template_path, tmp_path):
+    """Overriding a layout background adds a covering rectangle shape."""
+    pptx = tmp_path / "ms.pptx"
+    normalize_template_to_pptx(microsoft_template_path, pptx)
+    override_layout_backgrounds(pptx, {"Photo Slide 1": "F2F2F2"})
+
+    from pptx import Presentation
+    from pptx.oxml.ns import qn
+
+    prs = Presentation(str(pptx))
+    for layout in prs.slide_layouts:
+        if layout.name == "Photo Slide 1":
+            sp_tree = layout.placeholders._element.getparent()
+            # Find BgOverride shape
+            found = False
+            for sp in sp_tree.iter(qn("p:sp")):
+                cnv = sp.find(qn("p:nvSpPr"))
+                if cnv is not None:
+                    pr = cnv.find(qn("p:cNvPr"))
+                    if pr is not None and pr.get("name") == "BgOverride":
+                        found = True
+                        # Check fill color
+                        fill = sp.find(".//" + qn("a:srgbClr"))
+                        assert fill is not None
+                        assert fill.get("val") == "F2F2F2"
+            assert found, "BgOverride rectangle not found"
+            break
+    else:
+        pytest.fail("Photo Slide 1 layout not found")
