@@ -54,7 +54,7 @@ DEFAULT_AZURE_LAYOUTS: dict[str, str] = {
     Layout.TITLE.value: "Title Slide 1",
     Layout.SECTION_DIVIDER.value: "Section Slide 1",
     Layout.BULLETS.value: "Title and Content",
-    Layout.BULLETS_WITH_IMAGE.value: "Title & Text Side By Side 1",
+    Layout.BULLETS_WITH_IMAGE.value: "Photo Slide 1",
     Layout.FULL_BLEED_IMAGE.value: "Photo full bleed lower title",
     Layout.TWO_COLUMN.value: "Two Column Bullet text",
     Layout.QUOTE.value: "Quote",
@@ -80,7 +80,8 @@ DEFAULT_PLACEHOLDER_ROLES: dict[str, PlaceholderRoles] = {
     Layout.TITLE.value: PlaceholderRoles(title=0, body=12),
     Layout.SECTION_DIVIDER.value: PlaceholderRoles(title=0),
     Layout.BULLETS.value: PlaceholderRoles(title=0, body=10),
-    Layout.BULLETS_WITH_IMAGE.value: PlaceholderRoles(title=0, body=11),
+    # "Photo Slide 1": title=0 (top-left), body=12 (left below title), picture=10 (right half)
+    Layout.BULLETS_WITH_IMAGE.value: PlaceholderRoles(title=0, body=12, picture=10),
     Layout.FULL_BLEED_IMAGE.value: PlaceholderRoles(title=0, picture=10),
     Layout.TWO_COLUMN.value: PlaceholderRoles(title=0, body=12, secondary=13),
     Layout.QUOTE.value: PlaceholderRoles(title=0, body=12, secondary=18),
@@ -247,23 +248,27 @@ def slide_to_content(
         body_lines = _bullets_to_lines(slide.bullets)
         if body_lines and roles.body is not None:
             placeholders[roles.body] = body_lines
-        # Image element: half-width on the side opposite the text.
+        # Image goes into the picture-placeholder area of "Photo Slide 1"
+        # (right half: 6.67, 0, 6.67×7.5). We look up the actual dims from
+        # the template when available; otherwise fall back to sensible
+        # defaults for this layout.
         if image_paths:
-            position = (slide.image_position or "right").lower()
-            half_w = (SLIDE_W - 1.6 - 0.4) / 2
-            top = 1.7
-            height = SLIDE_H - top - 0.6
-            if position == "left":
-                left = 0.8
-            else:
-                left = 0.8 + half_w + 0.4
+            dims = _picture_placeholder_dims(
+                template_path,
+                layouts_map.get(layout_value, DEFAULT_AZURE_LAYOUTS.get(layout_value, "")),
+                roles.picture if roles.picture is not None else 10,
+            ) if template_path else None
+            if dims is None:
+                # Fallback: right half of slide
+                dims = (6.67, 0.0, 6.67, SLIDE_H)
+            left, top, w, h = dims
             elements.append({
                 "type": "image",
                 "path": f"{images_dir_name}/{image_paths[0].name}",
                 "left": left,
                 "top": top,
-                "width": half_w,
-                "height": height,
+                "width": w,
+                "height": h,
             })
 
     elif slide.layout is Layout.FULL_BLEED_IMAGE:
@@ -309,22 +314,32 @@ def slide_to_content(
             placeholders[roles.secondary] = f"\u2014 {attribution}"
 
     elif slide.layout is Layout.IMAGE_GRID:
-        # Up to 3 images laid out in equal thirds across the body.
+        # "Three picture content" has PICTURE placeholders at known coords.
+        # We look them up from the template when available; otherwise fall
+        # back to hardcoded positions from the Azure template.
+        _GRID_FALLBACK = [
+            (0.64, 2.22, 3.8, 3.8),   # idx 13
+            (4.77, 2.22, 3.8, 3.8),   # idx 14
+            (8.89, 2.22, 3.8, 3.8),   # idx 15
+        ]
+        grid_pic_indices = [13, 14, 15]
+        grid_layout_name = layouts_map.get(layout_value, DEFAULT_AZURE_LAYOUTS.get(layout_value, ""))
+        grid_dims: list[tuple[float, float, float, float]] = []
+        for idx in grid_pic_indices:
+            d = _picture_placeholder_dims(template_path, grid_layout_name, idx) if template_path else None
+            grid_dims.append(d if d else _GRID_FALLBACK[len(grid_dims)])
+
         chosen = image_paths[:3]
-        if chosen:
-            top = 2.0
-            gap = 0.2
-            tile_w = (SLIDE_W - 1.6 - gap * (len(chosen) - 1)) / len(chosen)
-            tile_h = SLIDE_H - top - 0.8
-            for i, path in enumerate(chosen):
-                elements.append({
-                    "type": "image",
-                    "path": f"{images_dir_name}/{path.name}",
-                    "left": 0.8 + i * (tile_w + gap),
-                    "top": top,
-                    "width": tile_w,
-                    "height": tile_h,
-                })
+        for i, path in enumerate(chosen):
+            left, top, w, h = grid_dims[i]
+            elements.append({
+                "type": "image",
+                "path": f"{images_dir_name}/{path.name}",
+                "left": left,
+                "top": top,
+                "width": w,
+                "height": h,
+            })
 
     # Append the slide's own opt-in `extra_elements` passthrough. These are
     # spliced verbatim — agents/users own validity. Drawn last so they sit

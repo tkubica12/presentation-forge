@@ -123,7 +123,7 @@ def _write_minimal_presentation_files(folder: Path, *, with_template: bool) -> N
             "title": "Title Slide 1",
             "section-divider": "Section Slide 1",
             "bullets": "Title and Content",
-            "bullets-with-image": "Title & Text Side By Side 1",
+            "bullets-with-image": "Photo Slide 1",
             "full-bleed-image": "Photo full bleed lower title",
             "two-column": "Two Column Bullet text",
             "quote": "Quote",

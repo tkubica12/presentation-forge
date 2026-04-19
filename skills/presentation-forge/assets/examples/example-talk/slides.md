@@ -36,8 +36,19 @@ bullets:
   - Warm, grounded, never precious
   - Hand-made, but engineered
   - Quiet confidence over loud claims
-image_ref: morning-ritual
+image_ref: brand-texture
 image_position: right
+notes: |
+  The image should reinforce the handmade-but-precise tone.
+---
+
+---
+slide-id: pour-over
+layout: full-bleed-image
+title: "The craft behind the cup"
+image_ref: pour-over-detail
+notes: |
+  Close-up of the pour-over process — slow, deliberate, beautiful.
 ---
 
 ---
@@ -47,6 +58,15 @@ body: |
   We are not selling caffeine. We are selling the ten minutes
   between waking up and being a person.
 subtitle: "Maya Chen, founder"
+---
+
+---
+slide-id: gallery
+layout: image-grid
+title: "Moments from the roastery"
+image_ref: roastery-moments
+notes: |
+  Three candid shots showing the team, the space, the beans.
 ---
 
 ---

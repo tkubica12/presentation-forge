@@ -62,7 +62,7 @@ def test_render_final_pptx_matches_template_layouts(
         "Title Slide 1",
         "Photo full bleed lower title",
         "Title and Content",
-        "Title & Text Side By Side 1",
+        "Photo Slide 1",
         "Quote",
         "Section Slide 1",
     ]

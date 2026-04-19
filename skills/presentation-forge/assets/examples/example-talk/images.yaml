@@ -6,8 +6,8 @@ common_requirements: |
 variations_description: |
   Vary the camera angle, time of day within the morning hours,
   and secondary props while preserving the warm editorial mood.
-variations_per_image: 2
-instances_per_variation: 1
+variations_count: 2
+instances_per_prompt: 1
 images:
   - name: morning-ritual
     description: |
@@ -15,3 +15,20 @@ images:
       wooden table by a sunlit kitchen window. Steam rises gently. A
       paperback book is open beside the mug. The mood is unhurried,
       private, intimate.
+  - name: brand-texture
+    description: |
+      A top-down flat lay of raw coffee beans scattered on a linen
+      cloth next to a hand-made ceramic pour-over dripper. Warm side
+      light from a window. The palette is brown, cream, and charcoal.
+  - name: pour-over-detail
+    description: |
+      Extreme close-up of hot water being poured from a gooseneck
+      kettle into a ceramic pour-over filter. The stream of water is
+      in sharp focus; everything else is a warm bokeh. Steam curls
+      upward. Cinematic, slow-motion feel.
+  - name: roastery-moments
+    description: |
+      A candid wide shot inside a small-batch coffee roastery. A
+      person in an apron checks a drum roaster. Burlap sacks of green
+      beans are stacked behind. Natural window light, industrial-warm
+      mood. No faces clearly visible.

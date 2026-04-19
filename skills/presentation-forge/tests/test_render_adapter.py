@@ -77,20 +77,25 @@ def test_bullets_with_image_right_position():
     elems = c["elements"]
     assert len(elems) == 1 and elems[0]["type"] == "image"
     assert elems[0]["path"].endswith("hero_v01_i01.png")
-    # right-positioned: left coord is past mid-line
-    assert elems[0]["left"] > 6.0
+    # Fallback (no template): right half of slide
+    assert elems[0]["left"] >= 6.0
+    # Bullets go to body placeholder (idx 12 on "Photo Slide 1")
+    roles = DEFAULT_PLACEHOLDER_ROLES["bullets-with-image"]
+    assert c["placeholders"][roles.body] == ["a", "b"]
 
 
-def test_bullets_with_image_left_position():
+def test_bullets_with_image_uses_full_right_half_without_template():
+    """Without a template, image falls back to right-half dimensions."""
     s = _slide(
         layout="bullets-with-image",
         title="t",
         bullets=["a"],
         image_ref="hero",
-        image_position="left",
+        image_position="left",  # position is ignored — layout dictates right
     )
     c = slide_to_content(s, image_paths=[Path("/tmp/x.png")])
-    assert c["elements"][0]["left"] < 1.0
+    # Still right side (template-driven layout, no left variant)
+    assert c["elements"][0]["left"] >= 6.0
 
 
 def test_bullets_with_image_no_image_yet():
