@@ -122,11 +122,13 @@ def test_full_bleed_image_with_image_uses_fallback_dims():
     assert elems[0]["type"] == "image"
     assert elems[0]["left"] == 0.0
     assert elems[0]["top"] == 0.0
-    # Overlay for contrast
+    # Overlay for contrast — positioned at bottom ~25%
     assert elems[1]["type"] == "shape"
+    assert elems[1]["top"] == 5.625
     # Title is a textbox on top (not a placeholder)
     assert elems[2]["type"] == "textbox"
     assert elems[2]["text"] == "hero"
+    assert elems[2]["top"] > 5.0  # positioned in bottom strip
     # Title placeholder should be absent
     roles = DEFAULT_PLACEHOLDER_ROLES["full-bleed-image"]
     assert roles.title not in c.get("placeholders", {})
@@ -139,6 +141,7 @@ def test_full_bleed_image_without_image_emits_title_textbox_only():
     elems = c.get("elements", [])
     assert len(elems) == 2
     assert elems[0]["type"] == "shape"
+    assert elems[0]["top"] == 5.625  # bottom overlay
     assert elems[1]["type"] == "textbox"
     assert elems[1]["text"] == "hero"
 

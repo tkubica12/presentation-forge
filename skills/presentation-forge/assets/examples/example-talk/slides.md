@@ -43,6 +43,19 @@ notes: |
 ---
 
 ---
+slide-id: strategy
+layout: two-column
+title: "Launch strategy"
+bullets:
+  - "Phase 1: Soft launch in three flagship cafés"
+  - "Phase 2: National wholesale partnerships"
+  - "Phase 1 goal: 500 daily cups in month one"
+  - "Phase 2 goal: 50 wholesale accounts by Q4"
+notes: |
+  Left column is phase description, right column is goals.
+---
+
+---
 slide-id: pour-over
 layout: full-bleed-image
 title: "The craft behind the cup"

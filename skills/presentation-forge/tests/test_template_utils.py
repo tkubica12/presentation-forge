@@ -90,10 +90,12 @@ def test_real_microsoft_template_round_trips(microsoft_template_path, tmp_path):
 
 
 def test_override_layout_backgrounds_changes_fill(microsoft_template_path, tmp_path):
-    """Overriding a layout background adds a covering rectangle shape."""
+    """Overriding a layout background replaces bg, resets clrMapOvr, and adds covering rect."""
     pptx = tmp_path / "ms.pptx"
     normalize_template_to_pptx(microsoft_template_path, pptx)
-    override_layout_backgrounds(pptx, {"Photo Slide 1": "F2F2F2"})
+    override_layout_backgrounds(pptx, {"Photo Slide 1": "D9D9D6"})
+
+    from lxml import etree
 
     from pptx import Presentation
     from pptx.oxml.ns import qn
@@ -101,8 +103,26 @@ def test_override_layout_backgrounds_changes_fill(microsoft_template_path, tmp_p
     prs = Presentation(str(pptx))
     for layout in prs.slide_layouts:
         if layout.name == "Photo Slide 1":
-            sp_tree = layout.placeholders._element.getparent()
-            # Find BgOverride shape
+            layout_el = layout._element
+            cSld = layout_el.find(qn("p:cSld"))
+            sp_tree = cSld.find(qn("p:spTree"))
+
+            # 1. Background should be a direct solid fill (no bgRef)
+            bg = cSld.find(qn("p:bg"))
+            assert bg is not None, "<p:bg> element missing"
+            bgPr = bg.find(qn("p:bgPr"))
+            assert bgPr is not None, "Expected <p:bgPr> (direct fill), not <p:bgRef>"
+            fill_clr = bgPr.find(".//" + qn("a:srgbClr"))
+            assert fill_clr is not None
+            assert fill_clr.get("val") == "D9D9D6"
+
+            # 2. clrMapOvr should be reset to masterClrMapping
+            cmo = layout_el.find(qn("p:clrMapOvr"))
+            assert cmo is not None
+            mcm = cmo.find(qn("a:masterClrMapping"))
+            assert mcm is not None, "Expected <a:masterClrMapping/> in clrMapOvr"
+
+            # 3. BgOverride rectangle should exist
             found = False
             for sp in sp_tree.iter(qn("p:sp")):
                 cnv = sp.find(qn("p:nvSpPr"))
@@ -110,10 +130,9 @@ def test_override_layout_backgrounds_changes_fill(microsoft_template_path, tmp_p
                     pr = cnv.find(qn("p:cNvPr"))
                     if pr is not None and pr.get("name") == "BgOverride":
                         found = True
-                        # Check fill color
                         fill = sp.find(".//" + qn("a:srgbClr"))
                         assert fill is not None
-                        assert fill.get("val") == "F2F2F2"
+                        assert fill.get("val") == "D9D9D6"
             assert found, "BgOverride rectangle not found"
             break
     else:

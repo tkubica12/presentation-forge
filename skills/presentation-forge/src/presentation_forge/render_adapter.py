@@ -332,28 +332,31 @@ def slide_to_content(
         placeholders.pop(roles.title, None) if roles.title is not None else None
         v = _placeholder_value(title_text)
         if v:
-            # Semi-transparent dark overlay for text readability.
+            # Semi-transparent dark overlay at the bottom ~25% of the slide
+            # so the image breathes above while text stays readable below.
+            _OVERLAY_TOP = 5.625
+            _OVERLAY_H = SLIDE_H - _OVERLAY_TOP
             elements.append({
                 "type": "shape",
                 "shape_type": "rectangle",
                 "left": 0.0,
-                "top": 3.5,
+                "top": _OVERLAY_TOP,
                 "width": SLIDE_W,
-                "height": 4.0,
-                "fill": {"color": "#000000", "alpha": 40},
+                "height": _OVERLAY_H,
+                "fill": {"color": "#000000", "alpha": 35},
                 "line": {"width": 0},
             })
             elements.append({
                 "type": "textbox",
-                "left": 0.4,
-                "top": 4.5,
-                "width": SLIDE_W - 0.8,
-                "height": 3.0,
+                "left": 0.5,
+                "top": _OVERLAY_TOP + 0.15,
+                "width": SLIDE_W - 1.0,
+                "height": _OVERLAY_H - 0.3,
                 "text": v,
-                "font_size": 40,
+                "font_size": 36,
                 "font_bold": True,
                 "font_color": "FFFFFF",
-                "vertical_alignment": "bottom",
+                "vertical_alignment": "middle",
             })
 
     elif slide.layout in (Layout.TWO_COLUMN, Layout.COMPARISON):
@@ -525,34 +528,63 @@ def materialize_workspace(
                     slide_dirs=slide_dirs,
                 )
                 continue
-            for i, (model, var, inst, src_path) in enumerate(variants, start=1):
-                slide_no += 1
-                suffix = (
-                    f"\u2014 variant {i}/{len(variants)} "
-                    f"({model} v{var:02d} i{inst:02d})"
-                )
-                _emit_slide(
-                    slide,
-                    slide_no=slide_no,
-                    content_dir=content_dir,
-                    image_files=[src_path],
-                    label_suffix=suffix,
-                    template_path=template_path,
-                    layouts_map=pres.theme.layouts,
-                    slide_dirs=slide_dirs,
-                )
+
+            if slide.layout is Layout.IMAGE_GRID:
+                # IMAGE_GRID in draft: one slide per model, each with up
+                # to 3 images so the user can evaluate the grid effect.
+                by_model: dict[str, list[Path]] = {}
+                for mdl, _v, _i, p in variants:
+                    by_model.setdefault(mdl, []).append(p)
+                models = list(by_model.keys())
+                for mi, mdl in enumerate(models, start=1):
+                    slide_no += 1
+                    suffix = f"\u2014 model {mi}/{len(models)} ({mdl})"
+                    _emit_slide(
+                        slide,
+                        slide_no=slide_no,
+                        content_dir=content_dir,
+                        image_files=by_model[mdl][:3],
+                        label_suffix=suffix,
+                        template_path=template_path,
+                        layouts_map=pres.theme.layouts,
+                        slide_dirs=slide_dirs,
+                    )
+            else:
+                for i, (model, var, inst, src_path) in enumerate(variants, start=1):
+                    slide_no += 1
+                    suffix = (
+                        f"\u2014 variant {i}/{len(variants)} "
+                        f"({model} v{var:02d} i{inst:02d})"
+                    )
+                    _emit_slide(
+                        slide,
+                        slide_no=slide_no,
+                        content_dir=content_dir,
+                        image_files=[src_path],
+                        label_suffix=suffix,
+                        template_path=template_path,
+                        layouts_map=pres.theme.layouts,
+                        slide_dirs=slide_dirs,
+                    )
             continue
 
         # Final mode (or draft for textual slides): one slide.
         image_files: list[Path] = []
-        if mode == "final" and slide.image_ref:
+        if slide.layout is Layout.IMAGE_GRID and slide.image_ref:
+            # IMAGE_GRID always needs multiple images (up to 3).
+            # In final mode, prefer variants from the selected model.
+            sel = pres.selections.get(slide.slide_id) if mode == "final" else None
+            all_variants = _list_variants(pres, slide)
+            if sel:
+                preferred = [p for mdl, *_, p in all_variants if mdl == sel.model.lower()]
+                others = [p for mdl, *_, p in all_variants if mdl != sel.model.lower()]
+                image_files = (preferred + others)[:3]
+            else:
+                image_files = [p for *_, p in all_variants][:3]
+        elif mode == "final" and slide.image_ref:
             sel_path = _resolve_selected_image(pres, slide)
             if sel_path and sel_path.exists():
                 image_files = [sel_path]
-            elif slide.layout is Layout.IMAGE_GRID:
-                image_files = [p for *_, p in _list_variants(pres, slide)][:3]
-        elif mode == "draft" and slide.layout is Layout.IMAGE_GRID:
-            image_files = [p for *_, p in _list_variants(pres, slide)][:3]
 
         slide_no += 1
         _emit_slide(
@@ -592,8 +624,14 @@ def _emit_slide(
     copied: list[Path] = []
     if image_files:
         images_dir.mkdir(parents=True)
+        seen_names: set[str] = set()
         for src in image_files:
-            dst = images_dir / src.name
+            name = src.name
+            if name in seen_names:
+                # Disambiguate: prefix with parent dir name (model name)
+                name = f"{src.parent.name}_{name}"
+            seen_names.add(name)
+            dst = images_dir / name
             shutil.copyfile(src, dst)
             copied.append(dst)
 

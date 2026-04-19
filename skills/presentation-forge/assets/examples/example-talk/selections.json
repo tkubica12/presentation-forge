@@ -1,0 +1,27 @@
+{
+  "title": null,
+  "hero": {
+    "model": "gpt-image-1.5",
+    "variation": 0,
+    "instance": 0
+  },
+  "pillars": null,
+  "brand-feel": {
+    "model": "gpt-image-1.5",
+    "variation": 0,
+    "instance": 0
+  },
+  "strategy": null,
+  "pour-over": {
+    "model": "mai-image-2",
+    "variation": 0,
+    "instance": 0
+  },
+  "founders-words": null,
+  "gallery": {
+    "model": "gpt-image-1.5",
+    "variation": 0,
+    "instance": 0
+  },
+  "closing": null
+}

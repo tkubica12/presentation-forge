@@ -15,10 +15,14 @@ layouts:
   image-grid: "Three Filmstrip Photos"
   appendix-references: "Title & Non-bulleted text"
 
-# Override blue backgrounds on photo layouts to neutral gray.
+# Override blue backgrounds on photo layouts to neutral warm gray.
+# The Azure template uses clrMapOvr inversions on these dark-slide layouts
+# (bg2 -> dk2 = 0000B3 blue). Our override replaces the background with a
+# direct solid fill and resets the color mapping to standard.
 layout_backgrounds:
-  "Photo Slide 1": "F2F2F2"
-  "Photo Slide 2": "F2F2F2"
+  "Photo Slide 1": "D9D9D6"
+  "Photo Slide 2": "D9D9D6"
+  "Three Filmstrip Photos": "D9D9D6"
 
 metadata:
   title: "Aurora Coffee"
