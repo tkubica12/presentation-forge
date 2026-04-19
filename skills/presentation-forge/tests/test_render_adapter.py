@@ -363,8 +363,9 @@ def test_materialize_workspace_draft_fans_out_image_variants(
     workdir = tmp_path / "ws"
     paths = materialize_workspace(pres, workdir=workdir, mode="draft")
 
-    # 6 logical slides; hero (3 variants) + side (2 variants) + 4 plain = 9 emitted
-    assert len(paths.slide_dirs) == 1 + 3 + 1 + 2 + 1 + 1
+    # 8 logical slides; hero (3 variants) + side (2 variants) + single/hero-img (3 variants)
+    # + duo/side-img (1 model group) + 4 plain = 14 emitted
+    assert len(paths.slide_dirs) == 1 + 3 + 1 + 2 + 1 + 3 + 1 + 1
     style = yaml.safe_load(paths.style_path.read_text(encoding="utf-8"))
     assert "layouts" in style
     # No template configured -> no template entry
@@ -372,7 +373,7 @@ def test_materialize_workspace_draft_fans_out_image_variants(
 
     # Each draft slide for an image-bearing layout copied its variant PNG.
     hero_drafts = [d for d in paths.slide_dirs if (d / "images").exists()]
-    assert len(hero_drafts) >= 5  # 3 hero + 2 side
+    assert len(hero_drafts) >= 7  # 3 hero + 2 side + 3 single(hero-img) + 1 duo(side-img) = 9 min
 
 
 def test_materialize_workspace_draft_emits_no_image_label_when_variants_missing(
@@ -409,7 +410,7 @@ def test_materialize_workspace_final_uses_selection(
     pres = load_presentation(folder)
 
     paths = materialize_workspace(pres, workdir=tmp_path / "ws", mode="final")
-    assert len(paths.slide_dirs) == 6  # one per slide
+    assert len(paths.slide_dirs) == 8  # one per slide
 
     # Slide 2 is the hero. Its images dir should contain the selected variant.
     hero_dir = paths.slide_dirs[1]
@@ -483,3 +484,60 @@ def test_materialize_workspace_full_bleed_uses_textbox_for_title(
     # Full-bleed image covers entire canvas
     assert elems[0]["left"] == 0.0
     assert elems[0]["width"] == pytest.approx(13.333, abs=0.01)
+
+
+# ---------------------------------------------------------------------------
+# IMAGE_SINGLE layout tests
+# ---------------------------------------------------------------------------
+
+
+def test_image_single_places_centered_image():
+    s = _slide(layout="image-single", title="Solo", image_ref="x")
+    c = slide_to_content(s, image_paths=[Path("/tmp/x.png")])
+    elems = c["elements"]
+    assert len(elems) == 1 and elems[0]["type"] == "image"
+    # Image should be horizontally centered on the 13.333" canvas
+    img = elems[0]
+    center = img["left"] + img["width"] / 2
+    assert abs(center - 13.333 / 2) < 0.5
+    # Title goes to placeholder
+    assert c["placeholders"][0] == "Solo"
+
+
+def test_image_single_without_image():
+    s = _slide(layout="image-single", title="Solo", image_ref="x")
+    c = slide_to_content(s, image_paths=[])
+    assert "elements" not in c
+    assert c["placeholders"][0] == "Solo"
+
+
+# ---------------------------------------------------------------------------
+# IMAGE_DUO layout tests
+# ---------------------------------------------------------------------------
+
+
+def test_image_duo_places_two_images_side_by_side():
+    s = _slide(layout="image-duo", title="Pair", image_ref="x")
+    paths = [Path("/tmp/a.png"), Path("/tmp/b.png")]
+    c = slide_to_content(s, image_paths=paths)
+    elems = c["elements"]
+    assert len(elems) == 2
+    assert all(e["type"] == "image" for e in elems)
+    # Left image should be to the left of the right image
+    assert elems[0]["left"] < elems[1]["left"]
+    # Title placeholder filled
+    assert c["placeholders"][0] == "Pair"
+
+
+def test_image_duo_with_one_image():
+    s = _slide(layout="image-duo", title="Pair", image_ref="x")
+    c = slide_to_content(s, image_paths=[Path("/tmp/a.png")])
+    assert len(c["elements"]) == 1
+    assert c["elements"][0]["type"] == "image"
+
+
+def test_image_duo_without_images():
+    s = _slide(layout="image-duo", title="Pair", image_ref="x")
+    c = slide_to_content(s, image_paths=[])
+    assert "elements" not in c
+    assert c["placeholders"][0] == "Pair"

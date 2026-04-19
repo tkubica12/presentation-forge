@@ -14,6 +14,8 @@ class Layout(str, Enum):
     QUOTE = "quote"
     COMPARISON = "comparison"
     IMAGE_GRID = "image-grid"
+    IMAGE_SINGLE = "image-single"
+    IMAGE_DUO = "image-duo"
     APPENDIX_REFERENCES = "appendix-references"
 
 
@@ -27,6 +29,8 @@ REQUIRED_FIELDS: dict[Layout, set[str]] = {
     Layout.QUOTE: {"body"},
     Layout.COMPARISON: {"title", "bullets"},
     Layout.IMAGE_GRID: {"title"},
+    Layout.IMAGE_SINGLE: {"title", "image_ref"},
+    Layout.IMAGE_DUO: {"title", "image_ref"},
     Layout.APPENDIX_REFERENCES: {"title", "body"},
 }
 
@@ -36,6 +40,8 @@ def needs_image(layout: Layout) -> bool:
         Layout.BULLETS_WITH_IMAGE,
         Layout.FULL_BLEED_IMAGE,
         Layout.IMAGE_GRID,
+        Layout.IMAGE_SINGLE,
+        Layout.IMAGE_DUO,
     }
 
 

@@ -83,6 +83,24 @@ notes: |
 ---
 
 ---
+slide-id: latte-art
+layout: image-single
+title: "Latte art spotlight"
+image_ref: latte-art
+notes: |
+  A single hero shot of our signature latte art.
+---
+
+---
+slide-id: bean-comparison
+layout: image-duo
+title: "Single origin vs blend"
+image_ref: bean-comparison
+notes: |
+  Side-by-side comparison of our two hero beans.
+---
+
+---
 slide-id: closing
 layout: section-divider
 title: "Thank you"

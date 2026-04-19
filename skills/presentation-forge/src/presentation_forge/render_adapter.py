@@ -60,6 +60,8 @@ DEFAULT_AZURE_LAYOUTS: dict[str, str] = {
     Layout.QUOTE.value: "Quote",
     Layout.COMPARISON.value: "Two Column Bullet text",
     Layout.IMAGE_GRID.value: "Three Filmstrip Photos",
+    Layout.IMAGE_SINGLE.value: "Title Only",
+    Layout.IMAGE_DUO.value: "Two picture content",
     Layout.APPENDIX_REFERENCES.value: "Title & Non-bulleted text",
 }
 
@@ -87,6 +89,8 @@ DEFAULT_PLACEHOLDER_ROLES: dict[str, PlaceholderRoles] = {
     Layout.QUOTE.value: PlaceholderRoles(title=0, body=12, secondary=18),
     Layout.COMPARISON.value: PlaceholderRoles(title=0, body=12, secondary=13),
     Layout.IMAGE_GRID.value: PlaceholderRoles(title=0),
+    Layout.IMAGE_SINGLE.value: PlaceholderRoles(title=0),
+    Layout.IMAGE_DUO.value: PlaceholderRoles(title=0),
     Layout.APPENDIX_REFERENCES.value: PlaceholderRoles(title=0, body=10),
 }
 
@@ -402,6 +406,45 @@ def slide_to_content(
                 images_dir_name=images_dir_name,
             ))
 
+    elif slide.layout is Layout.IMAGE_SINGLE:
+        # Centered single image below the title. Uses "Title Only" layout
+        # so the title placeholder is filled normally and the image is placed
+        # as a large centered element occupying most of the slide area.
+        if image_paths:
+            # Centre a large image under the title area
+            _IMG_TOP = 1.8
+            _IMG_H = SLIDE_H - _IMG_TOP - 0.4
+            _IMG_W = _IMG_H  # default square; will be adjusted by crop
+            _IMG_LEFT = (SLIDE_W - _IMG_W) / 2
+            elements.append(_image_element(
+                image_paths[0].name, _IMG_LEFT, _IMG_TOP, _IMG_W, _IMG_H,
+                image_path=image_paths[0],
+                images_dir_name=images_dir_name,
+            ))
+
+    elif slide.layout is Layout.IMAGE_DUO:
+        # Two images side by side with title above. Uses "Two picture content"
+        # layout. Picture placeholders at idx 13 (left) and idx 15 (right).
+        _DUO_FALLBACK = [
+            (0.64, 2.22, 5.87, 3.80),   # idx 13 (left)
+            (6.82, 2.22, 5.87, 3.80),   # idx 15 (right)
+        ]
+        duo_pic_indices = [13, 15]
+        duo_layout_name = layouts_map.get(layout_value, DEFAULT_AZURE_LAYOUTS.get(layout_value, ""))
+        duo_dims: list[tuple[float, float, float, float]] = []
+        for idx in duo_pic_indices:
+            d = _picture_placeholder_dims(template_path, duo_layout_name, idx) if template_path else None
+            duo_dims.append(d if d else _DUO_FALLBACK[len(duo_dims)])
+
+        chosen = image_paths[:2]
+        for i, path in enumerate(chosen):
+            left, top, w, h = duo_dims[i]
+            elements.append(_image_element(
+                path.name, left, top, w, h,
+                image_path=path,
+                images_dir_name=images_dir_name,
+            ))
+
     # Append the slide's own opt-in `extra_elements` passthrough. These are
     # spliced verbatim — agents/users own validity. Drawn last so they sit
     # on top of adapter-generated content.
@@ -549,6 +592,26 @@ def materialize_workspace(
                         layouts_map=pres.theme.layouts,
                         slide_dirs=slide_dirs,
                     )
+            elif slide.layout is Layout.IMAGE_DUO:
+                # IMAGE_DUO in draft: one slide per model, each with up
+                # to 2 images so the user can compare pairs.
+                by_model_duo: dict[str, list[Path]] = {}
+                for mdl, _v, _i, p in variants:
+                    by_model_duo.setdefault(mdl, []).append(p)
+                models_duo = list(by_model_duo.keys())
+                for mi, mdl in enumerate(models_duo, start=1):
+                    slide_no += 1
+                    suffix = f"\u2014 model {mi}/{len(models_duo)} ({mdl})"
+                    _emit_slide(
+                        slide,
+                        slide_no=slide_no,
+                        content_dir=content_dir,
+                        image_files=by_model_duo[mdl][:2],
+                        label_suffix=suffix,
+                        template_path=template_path,
+                        layouts_map=pres.theme.layouts,
+                        slide_dirs=slide_dirs,
+                    )
             else:
                 for i, (model, var, inst, src_path) in enumerate(variants, start=1):
                     slide_no += 1
@@ -581,6 +644,16 @@ def materialize_workspace(
                 image_files = (preferred + others)[:3]
             else:
                 image_files = [p for *_, p in all_variants][:3]
+        elif slide.layout is Layout.IMAGE_DUO and slide.image_ref:
+            # IMAGE_DUO needs 2 images. Prefer variants from the selected model.
+            sel = pres.selections.get(slide.slide_id) if mode == "final" else None
+            all_variants = _list_variants(pres, slide)
+            if sel:
+                preferred = [p for mdl, *_, p in all_variants if mdl == sel.model.lower()]
+                others = [p for mdl, *_, p in all_variants if mdl != sel.model.lower()]
+                image_files = (preferred + others)[:2]
+            else:
+                image_files = [p for *_, p in all_variants][:2]
         elif mode == "final" and slide.image_ref:
             sel_path = _resolve_selected_image(pres, slide)
             if sel_path and sel_path.exists():

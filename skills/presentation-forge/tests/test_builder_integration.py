@@ -56,7 +56,7 @@ def test_render_final_pptx_matches_template_layouts(
     from pptx import Presentation
 
     prs = Presentation(str(out))
-    assert len(prs.slides) == 6, "expected one rendered slide per spec slide"
+    assert len(prs.slides) == 8, "expected one rendered slide per spec slide"
 
     expected_layouts = [
         "Title Slide 1",
@@ -64,6 +64,8 @@ def test_render_final_pptx_matches_template_layouts(
         "Title and Content",
         "Photo Slide 1",
         "Quote",
+        "Title Only",
+        "Two picture content",
         "Section Slide 1",
     ]
     actual_layouts = [s.slide_layout.name for s in prs.slides]
@@ -85,9 +87,17 @@ def test_render_final_pptx_matches_template_layouts(
     assert "\u201c" in s5_texts.get(12, "") and "\u201d" in s5_texts.get(12, "")
     assert s5_texts.get(18, "").startswith("\u2014 ")
 
-    # Slide 6: section divider title
+    # Slide 6: image-single — title
     s6_texts = {ph.placeholder_format.idx: ph.text_frame.text for ph in prs.slides[5].placeholders}
-    assert s6_texts.get(0) == "Thanks"
+    assert s6_texts.get(0) == "Solo shot"
+
+    # Slide 7: image-duo — title
+    s7_texts = {ph.placeholder_format.idx: ph.text_frame.text for ph in prs.slides[6].placeholders}
+    assert s7_texts.get(0) == "Two views"
+
+    # Slide 8: section divider title
+    s8_texts = {ph.placeholder_format.idx: ph.text_frame.text for ph in prs.slides[7].placeholders}
+    assert s8_texts.get(0) == "Thanks"
 
     # Notes preserved on slide 1
     assert prs.slides[0].notes_slide is not None  # may auto-create
@@ -114,8 +124,9 @@ def test_render_draft_fans_out_per_variant(
     from pptx import Presentation
 
     prs = Presentation(str(out))
-    # 1 title + 3 hero variants + 1 bullets + 2 side variants + 1 quote + 1 closing = 9
-    assert len(prs.slides) == 9
+    # 1 title + 3 hero variants + 1 bullets + 2 side variants + 1 quote
+    # + 3 single variants + 1 duo model-group + 1 closing = 13
+    assert len(prs.slides) == 13
 
 
 def test_render_final_without_template_still_works(
@@ -131,4 +142,4 @@ def test_render_final_without_template_still_works(
     from pptx import Presentation
 
     prs = Presentation(str(out))
-    assert len(prs.slides) == 6
+    assert len(prs.slides) == 8

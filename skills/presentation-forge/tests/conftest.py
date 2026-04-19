@@ -85,6 +85,20 @@ def _write_minimal_presentation_files(folder: Path, *, with_template: bool) -> N
             ---
 
             ---
+            slide-id: single
+            layout: image-single
+            title: "Solo shot"
+            image_ref: hero-img
+            ---
+
+            ---
+            slide-id: duo
+            layout: image-duo
+            title: "Two views"
+            image_ref: side-img
+            ---
+
+            ---
             slide-id: end
             layout: section-divider
             title: "Thanks"
@@ -129,6 +143,8 @@ def _write_minimal_presentation_files(folder: Path, *, with_template: bool) -> N
             "quote": "Quote",
             "comparison": "Two Column Bullet text",
             "image-grid": "Three Filmstrip Photos",
+            "image-single": "Title Only",
+            "image-duo": "Two picture content",
             "appendix-references": "Title & Non-bulleted text",
         }
         theme["metadata"] = {"author": "tests", "subject": "test deck"}

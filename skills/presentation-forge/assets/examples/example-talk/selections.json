@@ -23,5 +23,15 @@
     "variation": 0,
     "instance": 0
   },
+  "latte-art": {
+    "model": "gpt-image-1.5",
+    "variation": 0,
+    "instance": 0
+  },
+  "bean-comparison": {
+    "model": "gpt-image-1.5",
+    "variation": 0,
+    "instance": 0
+  },
   "closing": null
 }

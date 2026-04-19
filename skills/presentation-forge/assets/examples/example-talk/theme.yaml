@@ -13,6 +13,8 @@ layouts:
   quote: "Quote"
   comparison: "Two Column Bullet text"
   image-grid: "Three Filmstrip Photos"
+  image-single: "Title Only"
+  image-duo: "Two picture content"
   appendix-references: "Title & Non-bulleted text"
 
 # Override blue backgrounds on photo layouts to neutral warm gray.
@@ -20,9 +22,11 @@ layouts:
 # (bg2 -> dk2 = 0000B3 blue). Our override replaces the background with a
 # direct solid fill and resets the color mapping to standard.
 layout_backgrounds:
-  "Photo Slide 1": "D9D9D6"
-  "Photo Slide 2": "D9D9D6"
-  "Three Filmstrip Photos": "D9D9D6"
+  "Photo Slide 1": "FFFFFF"
+  "Photo Slide 2": "FFFFFF"
+  "Three Filmstrip Photos": "FFFFFF"
+  "Title Only": "FFFFFF"
+  "Two picture content": "FFFFFF"
 
 metadata:
   title: "Aurora Coffee"
