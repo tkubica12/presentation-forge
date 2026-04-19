@@ -17,16 +17,45 @@ class Theme:
     fonts: dict[str, str] = field(default_factory=dict)
     colors: dict[str, str] = field(default_factory=dict)
     logo: Path | None = None
+    # Mapping from our logical layout name (Layout enum value) to the
+    # PowerPoint slide-layout name (or integer index) inside `template`.
+    # Consumed by hve-core's `build_deck.py` via `style.yaml`.
+    layouts: dict[str, str | int] = field(default_factory=dict)
+    # Optional file-property metadata for the produced PPTX.
+    metadata: dict[str, str] = field(default_factory=dict)
+    # Optional defaults block forwarded to hve-core's `style.yaml`.
+    defaults: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], base: Path) -> "Theme":
         tpl = data.get("template")
         logo = data.get("logo")
+        layouts_raw = data.get("layouts") or {}
+        if not isinstance(layouts_raw, dict):
+            raise ValueError("theme.yaml: `layouts` must be a mapping")
+        layouts: dict[str, str | int] = {}
+        for k, v in layouts_raw.items():
+            if not isinstance(k, str):
+                raise ValueError(f"theme.yaml layouts: non-string key {k!r}")
+            if not isinstance(v, (str, int)):
+                raise ValueError(
+                    f"theme.yaml layouts[{k!r}]: value must be string or int"
+                )
+            layouts[k] = v
+        metadata_raw = data.get("metadata") or {}
+        if not isinstance(metadata_raw, dict):
+            raise ValueError("theme.yaml: `metadata` must be a mapping")
+        defaults_raw = data.get("defaults") or {}
+        if not isinstance(defaults_raw, dict):
+            raise ValueError("theme.yaml: `defaults` must be a mapping")
         return cls(
             template=(base / tpl).resolve() if tpl else None,
             fonts=dict(data.get("fonts") or {}),
             colors=dict(data.get("colors") or {}),
             logo=(base / logo).resolve() if logo else None,
+            layouts=layouts,
+            metadata={str(k): str(v) for k, v in metadata_raw.items()},
+            defaults=dict(defaults_raw),
         )
 
 

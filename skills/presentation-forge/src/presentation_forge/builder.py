@@ -7,15 +7,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import pptx_render
-from .layouts import Layout, REQUIRED_FIELDS
-from .spec import Presentation, load_presentation
+from . import render_adapter
+from .layouts import REQUIRED_FIELDS
+from .spec import Presentation
 from .state import State, hash_slide, hash_text
 
 
 SKILL_DIR = Path(__file__).resolve().parents[2]  # skills/presentation-forge/
 SKILLS_ROOT = SKILL_DIR.parent  # skills/
 IMAGE_GENERATOR_DIR = SKILLS_ROOT / "image-generator"
+PPTX_RENDER_DIR = SKILLS_ROOT / "pptx-render"
+BUILD_DECK_SCRIPT = PPTX_RENDER_DIR / "scripts" / "build_deck.py"
 
 
 class ValidationError(Exception):
@@ -67,7 +69,7 @@ def validate(pres: Presentation) -> list[str]:
 def _find_uv() -> str:
     uv = shutil.which("uv")
     if not uv:
-        raise FileNotFoundError("`uv` not found in PATH; install uv to run image-generator")
+        raise FileNotFoundError("`uv` not found in PATH; install uv to run sub-skills")
     return uv
 
 
@@ -87,10 +89,38 @@ def run_images(pres: Presentation, *, parallelism: int | None = None) -> None:
     if parallelism is not None:
         cmd.extend(["--parallelism", str(parallelism)])
     print(f"$ {' '.join(cmd)}", flush=True)
-    # Stream output through; image-generator prints its own JSON summary at the end.
     rc = subprocess.call(cmd, env=os.environ.copy())
     if rc != 0:
         raise RuntimeError(f"image-generator exited with code {rc}")
+
+
+def _render_one(pres: Presentation, *, mode: str, output: Path) -> Path:
+    """Materialize hve-core workspace and shell out to its build_deck.py."""
+    if not BUILD_DECK_SCRIPT.exists():
+        raise FileNotFoundError(
+            f"sibling pptx-render skill not found at {PPTX_RENDER_DIR}. "
+            f"It should be vendored at skills/pptx-render/."
+        )
+    workdir = pres.build_dir / f"_hve_{mode}"
+    paths = render_adapter.materialize_workspace(pres, workdir=workdir, mode=mode)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    uv = _find_uv()
+    cmd = [
+        uv, "--directory", str(PPTX_RENDER_DIR), "run",
+        "python", str(BUILD_DECK_SCRIPT),
+        "--content-dir", str(paths.content_dir),
+        "--style", str(paths.style_path),
+        "--output", str(output),
+    ]
+    if paths.template_path is not None:
+        cmd.extend(["--template", str(paths.template_path)])
+    print(f"$ {' '.join(cmd)}", flush=True)
+    rc = subprocess.call(cmd, env=os.environ.copy())
+    if rc != 0:
+        raise RuntimeError(f"build_deck.py exited with code {rc}")
+    if not output.exists():
+        raise RuntimeError(f"build_deck.py did not produce expected output: {output}")
+    return output
 
 
 def build(pres: Presentation, *, draft: bool = True, final: bool = True,
@@ -103,11 +133,11 @@ def build(pres: Presentation, *, draft: bool = True, final: bool = True,
 
     out: dict[str, Path] = {}
     if draft:
-        out["draft"] = pptx_render.render_draft(pres)
+        out["draft"] = _render_one(pres, mode="draft", output=pres.draft_pptx)
         for slide in pres.slides:
             state.record_slide(slide.slide_id, hash_slide(slide), kind="draft")
     if final:
-        out["final"] = pptx_render.render_final(pres)
+        out["final"] = _render_one(pres, mode="final", output=pres.final_pptx)
         for slide in pres.slides:
             state.record_slide(slide.slide_id, hash_slide(slide), kind="final")
 

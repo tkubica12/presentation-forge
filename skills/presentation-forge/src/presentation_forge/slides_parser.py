@@ -24,6 +24,11 @@ class Slide:
     image_ref: str | None = None
     image_position: str | None = None  # left | right | full
     notes: str | None = None
+    # Optional passthrough: list of element dicts spliced verbatim into the
+    # `elements:` array of the rendered hve-core content.yaml. Use this only
+    # when the editorial layer (title/bullets/image_ref) cannot express the
+    # one-off shape you need — see references/SLIDES_FORMAT.md.
+    extra_elements: list[dict[str, Any]] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -52,6 +57,13 @@ class Slide:
             raise ValueError(
                 f"slide {sid!r} (layout {layout.value}): missing required fields {sorted(missing)}"
             )
+        extra = data.get("extra_elements") or []
+        if not isinstance(extra, list) or any(
+            not isinstance(e, dict) for e in extra
+        ):
+            raise ValueError(
+                f"slide {sid!r}: `extra_elements` must be a list of dicts"
+            )
         return cls(
             slide_id=sid,
             layout=layout,
@@ -62,6 +74,7 @@ class Slide:
             image_ref=data.get("image_ref"),
             image_position=data.get("image_position"),
             notes=data.get("notes"),
+            extra_elements=list(extra),
             raw=data,
         )
 

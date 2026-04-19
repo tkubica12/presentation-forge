@@ -110,9 +110,17 @@ presentation-forge/                    # tkubica12/presentation-forge (public, M
   ```
 
 ### 4.2 Renderer quality (the big one — §6)
-- Current `pptx_render.py` draws fresh shapes on `slide_layouts[6]` (Blank).
-  Output is functional but ignores PowerPoint's master/layout/placeholder
-  inheritance. **No support for a real Microsoft corporate `.pptx` template.**
+- ✅ **DONE.** `pptx_render.py` deleted; `microsoft/hve-core` PowerPoint
+  skill vendored at `skills/pptx-render/` (commit
+  `29a2df1b720ddaedd1e328c0c119550bfff52a86`). Adapter at
+  `presentation_forge.render_adapter` translates our `slides.md` model to
+  hve-core's `content/slide-NNN/content.yaml` format. Builder shells out
+  to hve-core's `build_deck.py` via `uv --directory ../pptx-render run`.
+  The Microsoft Azure template (`.templates/Microsoft-Azure-PowerPoint-Template-2604.potx`)
+  is normalized to `.pptx` on the fly (content-type rewrite) and the
+  produced decks inherit the template's masters, layouts, fonts, and
+  colors. See §6 below for the locked-in decisions and the comprehensive
+  test suite at `skills/presentation-forge/tests/`.
 
 ### 4.3 Future enhancements (deferred, not blocking)
 - `forge regen --slide=<id>` for targeted image re-runs.
@@ -168,27 +176,53 @@ skill folder `skills/pptx-render/`.**
 | **Anthropic `pptx` skill** | License forbids vendoring even in private repos. Off-limits. |
 | **Stay with our own `pptx_render.py` but switch to placeholder-binding** | Smaller change, no new dependency, but loses partial-rebuild + extraction + vision QA features. Fallback if hve-core integration proves too costly. |
 
-### 6.3 Concrete integration plan
+### 6.3 Concrete integration plan — ✅ COMPLETE
 
-1. **Vendor.** Add `skills/pptx-render/` to the repo containing a verbatim
-   copy of `microsoft/hve-core/.github/skills/experimental/powerpoint/`
-   pinned to a specific commit SHA. Preserve their copyright headers and
-   `LICENSE`. Add `NOTICE` file documenting provenance + commit SHA.
-2. **Adapter.** Add `src/presentation_forge/render_adapter.py` that reads
-   our `slides.md` + `theme.yaml` + `selections.json` and writes hve-core's
-   expected layout: `content/slide-NNN/content.yaml` + `content/global/style.yaml`.
-3. **Shell out.** `builder.py` invokes their `build_deck.py` instead of
-   `pptx_render.py`. Same `uv --directory` pattern we use for image-generator.
-4. **Schema.** Extend `theme.yaml` with:
-   - `template:` — path to user's Microsoft `.pptx` template.
-   - `layouts:` — logical-name (`title`, `bullets`, …) → template-layout-name map.
-5. **Incremental rebuild.** Wire our `state.json` content-hash diff into
-   their `--source build/final.pptx --slides <changed-list>` mode.
-6. **Delete.** Remove `src/presentation_forge/pptx_render.py` once parity
-   is verified.
-7. **Optional.** Hook `validate_slides.py` (vision QA) into
-   `forge validate --visual`.
-8. **Test.** End-to-end with a real Microsoft corporate template.
+1. ✅ **Vendor.** `skills/pptx-render/` is a verbatim copy of
+   `microsoft/hve-core/.github/skills/experimental/powerpoint/` pinned at
+   commit `29a2df1b720ddaedd1e328c0c119550bfff52a86`. `NOTICE` records
+   provenance + a one-line bug fix to `build_deck.py` (placeholder
+   lookup) that should be PR'd upstream. Their `LICENSE` is preserved as
+   `LICENSE-microsoft`.
+2. ✅ **Adapter.** `src/presentation_forge/render_adapter.py` reads our
+   model and writes hve-core's `content/slide-NNN/content.yaml` +
+   `content/global/style.yaml`. `materialize_workspace(pres,
+   workdir=…, mode="draft"|"final")` returns the paths the subprocess
+   needs.
+3. ✅ **Shell out.** `builder._render_one()` now calls
+   `uv --directory ../pptx-render run python scripts/build_deck.py`.
+4. ✅ **Schema.** `theme.yaml` accepts `template:`, `layouts:`,
+   `metadata:`, and `defaults:` (see `Theme.from_dict` and the
+   example-talk `theme.yaml` for the full format).
+5. **Incremental rebuild.** Not yet wired (the SHA-pinned upstream
+   supports `--source/--slides` but our builder still does full rebuilds).
+   Deferred — current full rebuilds are fast enough for example-talk.
+6. ✅ **Delete.** `src/presentation_forge/pptx_render.py` removed.
+7. **Vision QA.** Not wired (deferred; needs Copilot CLI installation).
+8. ✅ **Test.** End-to-end test suite at
+   `skills/presentation-forge/tests/`:
+   - `test_template_utils.py` — `.potx`↔`.pptx` normalization (incl. round-trip with the real Microsoft template).
+   - `test_slides_parser.py` — parsing + validation incl. `extra_elements:`.
+   - `test_spec_theme.py` — `Theme` schema validation.
+   - `test_render_adapter.py` — per-layout `slide_to_content` shape, `materialize_workspace` draft/final fan-out.
+   - `test_builder_integration.py` — full build → real `.pptx` opened with python-pptx, asserts each slide's `slide_layout.name` matches the configured Microsoft template layout and placeholder text is populated correctly.
+   - 57 tests, runs in ~12 s. Run with `uv run pytest`.
+
+### 6.3.1 Two-layer authoring (decided in §3 and re-confirmed)
+
+The codebase keeps **two abstraction layers**:
+
+* `slides.md` — editorial. 10-layout enum, `image_ref`, `notes`,
+  agent-friendly. Stable contract for users and authors.
+* hve-core's `content/slide-NNN/content.yaml` — compositional.
+  Per-slide placeholder indices, inch coords, picture/text elements.
+  Generated, never hand-edited.
+
+Translation is one-way and pure (no I/O outside read-the-spec /
+write-the-tree). The escape hatch for one-off shapes that the editorial
+layer can't express is the per-slide `extra_elements:` list — values are
+spliced verbatim into the rendered `elements:` array. See
+`references/SLIDES_FORMAT.md` for the documented schema.
 
 ### 6.4 Risks / open questions
 

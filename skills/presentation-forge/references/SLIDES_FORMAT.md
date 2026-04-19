@@ -94,3 +94,48 @@ notes: |
   Tie each pillar to a customer story.
 ---
 ```
+
+## Optional `extra_elements:` (advanced passthrough)
+
+For one-off shapes that the editorial layer (title / bullets / image_ref)
+cannot express — e.g., a sponsor logo strip, a watermark, a decorative
+divider — a slide may carry an `extra_elements:` list. Each list item is
+a dict that is **spliced verbatim** into the renderer's `elements:` array
+and drawn on top of the adapter-generated content. Validity is the
+author's responsibility.
+
+The element schema is the one consumed by the vendored
+`microsoft/hve-core` PowerPoint skill (see
+`skills/pptx-render/element-types-template.md` for the full grammar).
+Common element types are `textbox`, `image`, `shape`, `line`, and
+`table`. Coordinates are in **inches** on a 16:9 canvas
+(13.333" × 7.5").
+
+```markdown
+---
+slide-id: title
+layout: title
+title: "Aurora Coffee"
+subtitle: "Q3 launch creative direction"
+extra_elements:
+  - type: textbox
+    left: 0.4
+    top: 7.05
+    width: 12.5
+    height: 0.35
+    text: "Confidential — internal review only"
+    font_size: 9
+    font_italic: true
+  - type: shape
+    shape_type: rectangle
+    left: 0
+    top: 7.46
+    width: 13.333
+    height: 0.04
+    fill: "#0078D4"
+---
+```
+
+Reach for this only when the editorial fields can't carry the intent —
+otherwise prefer keeping slides expressive at the editorial layer.
+

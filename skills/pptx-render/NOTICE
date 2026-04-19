@@ -1,0 +1,41 @@
+presentation-forge / skills/pptx-render
+========================================
+
+This directory is a verbatim vendored copy of the PowerPoint skill from:
+
+  Repository:  https://github.com/microsoft/hve-core
+  Path:        .github/skills/experimental/powerpoint/
+  Commit SHA:  29a2df1b720ddaedd1e328c0c119550bfff52a86
+  Vendored at: 2026-04-19
+  License:     MIT (Copyright (c) Microsoft Corporation)
+
+The full upstream LICENSE is preserved next to this NOTICE as
+`LICENSE-microsoft`.
+
+Local modifications to upstream
+-------------------------------
+The following one-line bug fix has been applied on top of the vendored
+sources. It should be sent upstream as a PR.
+
+* `scripts/build_deck.py` (around line 970, in `build_slide`):
+  Replaced `if idx in slide.placeholders: ph = slide.placeholders[idx]`
+  with a `try / except KeyError` around `slide.placeholders[idx]`.
+
+  Rationale: `pptx.shapes.shapetree.SlidePlaceholders` does not implement
+  `__contains__`, so `int in slide.placeholders` always evaluates to
+  `False` (Python falls back to iterating shape objects and comparing
+  them to the int). The result upstream is that `placeholders:` entries
+  in `content.yaml` are silently dropped — every layout-bound title /
+  body comes out blank. The `try/except` matches the documented
+  semantics of `__getitem__`, which raises `KeyError` when no
+  placeholder with that idx exists.
+
+Adapter and orchestration code that bridges presentation-forge's
+authoring layer (`slides.md`, `theme.yaml`, `selections.json`) to this
+skill's `content/slide-NNN/content.yaml` + `content/global/style.yaml`
+schema lives in the sibling skill at:
+
+  ../presentation-forge/src/presentation_forge/render_adapter.py
+
+Updates to the upstream skill are deliberate: bump the SHA above, re-copy
+the directory, run the adapter's tests against the new schema, and commit.

@@ -1,6 +1,32 @@
+template: ../../../../../.templates/Microsoft-Azure-PowerPoint-Template-2604.potx
+
+# Logical-name -> PowerPoint slide-layout name (or integer index) within
+# the template above. Defaults from `render_adapter.DEFAULT_AZURE_LAYOUTS`
+# are used for any layout you don't override here.
+layouts:
+  title: "Title Slide 1"
+  section-divider: "Section Slide 1"
+  bullets: "Title and Content"
+  bullets-with-image: "Title & Text Side By Side 1"
+  full-bleed-image: "Photo full bleed lower title"
+  two-column: "Two Column Bullet text"
+  quote: "Quote"
+  comparison: "Two Column Bullet text"
+  image-grid: "Three picture content"
+  appendix-references: "Title & Non-bulleted text"
+
+metadata:
+  title: "Aurora Coffee"
+  author: "Aurora Coffee Brand Team"
+  subject: "Q3 launch creative direction"
+  category: "Brand presentation"
+
+# Colors and fonts are kept for documentation / future overrides; the
+# Microsoft template above provides the visual theme. Render uses the
+# template masters — these values are not currently consumed.
 fonts:
-  heading: "Inter"
-  body: "Inter"
+  heading: "Segoe UI"
+  body: "Segoe UI"
 
 colors:
   background: "FAF7F2"
