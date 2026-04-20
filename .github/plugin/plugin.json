@@ -19,6 +19,8 @@
     "./agents"
   ],
   "skills": [
-    "./skills/presentation-forge"
+    "./skills/presentation-forge",
+    "./skills/image-generator",
+    "./skills/pptx-render"
   ]
 }
