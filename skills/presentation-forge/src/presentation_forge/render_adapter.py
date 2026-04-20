@@ -407,14 +407,17 @@ def slide_to_content(
             ))
 
     elif slide.layout is Layout.IMAGE_SINGLE:
-        # Centered single image below the title. Uses "Title Only" layout
+        # Centered landscape image below the title. Uses "Title Only" layout
         # so the title placeholder is filled normally and the image is placed
         # as a large centered element occupying most of the slide area.
         if image_paths:
-            # Centre a large image under the title area
+            # Centre a large landscape image under the title area
             _IMG_TOP = 1.8
-            _IMG_H = SLIDE_H - _IMG_TOP - 0.4
-            _IMG_W = _IMG_H  # default square; will be adjusted by crop
+            _IMG_H = SLIDE_H - _IMG_TOP - 0.5
+            _IMG_W = _IMG_H * 1.5  # 3:2 landscape ratio
+            if _IMG_W > SLIDE_W - 1.0:
+                _IMG_W = SLIDE_W - 1.0
+                _IMG_H = _IMG_W / 1.5
             _IMG_LEFT = (SLIDE_W - _IMG_W) / 2
             elements.append(_image_element(
                 image_paths[0].name, _IMG_LEFT, _IMG_TOP, _IMG_W, _IMG_H,
@@ -423,18 +426,21 @@ def slide_to_content(
             ))
 
     elif slide.layout is Layout.IMAGE_DUO:
-        # Two images side by side with title above. Uses "Two picture content"
-        # layout. Picture placeholders at idx 13 (left) and idx 15 (right).
-        _DUO_FALLBACK = [
-            (0.64, 2.22, 5.87, 3.80),   # idx 13 (left)
-            (6.82, 2.22, 5.87, 3.80),   # idx 15 (right)
+        # Two images side by side, centered and symmetrical. Uses "Two
+        # picture content" layout. We compute positions explicitly for
+        # proper symmetry rather than relying on template placeholders.
+        _DUO_TOP = 2.0
+        _DUO_H = 4.0
+        _DUO_W = _DUO_H  # square images for duo
+        _DUO_GAP = 0.6
+        _DUO_TOTAL = _DUO_W * 2 + _DUO_GAP
+        _DUO_LEFT1 = (SLIDE_W - _DUO_TOTAL) / 2
+        _DUO_LEFT2 = _DUO_LEFT1 + _DUO_W + _DUO_GAP
+
+        duo_dims = [
+            (_DUO_LEFT1, _DUO_TOP, _DUO_W, _DUO_H),
+            (_DUO_LEFT2, _DUO_TOP, _DUO_W, _DUO_H),
         ]
-        duo_pic_indices = [13, 15]
-        duo_layout_name = layouts_map.get(layout_value, DEFAULT_AZURE_LAYOUTS.get(layout_value, ""))
-        duo_dims: list[tuple[float, float, float, float]] = []
-        for idx in duo_pic_indices:
-            d = _picture_placeholder_dims(template_path, duo_layout_name, idx) if template_path else None
-            duo_dims.append(d if d else _DUO_FALLBACK[len(duo_dims)])
 
         chosen = image_paths[:2]
         for i, path in enumerate(chosen):

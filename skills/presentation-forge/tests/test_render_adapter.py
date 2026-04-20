@@ -500,6 +500,8 @@ def test_image_single_places_centered_image():
     img = elems[0]
     center = img["left"] + img["width"] / 2
     assert abs(center - 13.333 / 2) < 0.5
+    # Image should be landscape (wider than tall)
+    assert img["width"] > img["height"]
     # Title goes to placeholder
     assert c["placeholders"][0] == "Solo"
 
@@ -525,6 +527,14 @@ def test_image_duo_places_two_images_side_by_side():
     assert all(e["type"] == "image" for e in elems)
     # Left image should be to the left of the right image
     assert elems[0]["left"] < elems[1]["left"]
+    # Images should be symmetrical around the canvas centre
+    center_left = elems[0]["left"] + elems[0]["width"] / 2
+    center_right = elems[1]["left"] + elems[1]["width"] / 2
+    canvas_center = 13.333 / 2
+    assert abs((canvas_center - center_left) - (center_right - canvas_center)) < 0.1
+    # Both images should be the same size
+    assert elems[0]["width"] == elems[1]["width"]
+    assert elems[0]["height"] == elems[1]["height"]
     # Title placeholder filled
     assert c["placeholders"][0] == "Pair"
 

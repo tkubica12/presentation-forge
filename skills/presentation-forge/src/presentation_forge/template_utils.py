@@ -133,6 +133,8 @@ def override_layout_backgrounds(
         # The master titleStyle uses schemeClr="tx2" which, under the
         # standard (non-inverted) mapping, resolves to dk2 = blue.
         # Override the title placeholder's defRPr to a direct dark colour.
+        # If no defRPr exists yet (placeholder inherits everything from
+        # the master), inject a lstStyle with the colour override.
         sp_tree = cSld.find(qn("p:spTree"))
         for sp in sp_tree.iter(qn("p:sp")):
             nvPr = sp.find(f"{qn('p:nvSpPr')}/{qn('p:nvPr')}")
@@ -147,17 +149,69 @@ def override_layout_backgrounds(
             if ph_type in ("title", "ctrTitle") or ph_idx == "0":
                 txBody = sp.find(qn("p:txBody"))
                 if txBody is None:
+                    # Create a minimal txBody with the colour override
+                    txBody_xml = (
+                        f'<p:txBody xmlns:p="{NS_P}" xmlns:a="{NS_A}">'
+                        f'  <a:bodyPr/>'
+                        f'  <a:lstStyle>'
+                        f'    <a:lvl1pPr>'
+                        f'      <a:defRPr>'
+                        f'        <a:solidFill><a:srgbClr val="2A1F18"/></a:solidFill>'
+                        f'      </a:defRPr>'
+                        f'    </a:lvl1pPr>'
+                        f'  </a:lstStyle>'
+                        f'  <a:p><a:endParaRPr/></a:p>'
+                        f'</p:txBody>'
+                    )
+                    sp.append(etree.fromstring(txBody_xml))
                     continue
+
+                # Try existing defRPr elements first
+                found_defRPr = False
                 for defRPr in txBody.iter(qn("a:defRPr")):
+                    found_defRPr = True
                     old_fill = defRPr.find(qn("a:solidFill"))
                     if old_fill is not None:
                         defRPr.remove(old_fill)
+                    # Also remove schemeClr references inside runs
+                    old_scheme = defRPr.find(qn("a:schemeClr"))
+                    if old_scheme is not None:
+                        defRPr.remove(old_scheme)
                     fill_xml = (
                         f'<a:solidFill xmlns:a="{NS_A}">'
                         f'  <a:srgbClr val="2A1F18"/>'
                         f'</a:solidFill>'
                     )
                     defRPr.insert(0, etree.fromstring(fill_xml))
+
+                if not found_defRPr:
+                    # No defRPr at all — add a lstStyle with the override
+                    lstStyle = txBody.find(qn("a:lstStyle"))
+                    if lstStyle is None:
+                        lstStyle_xml = (
+                            f'<a:lstStyle xmlns:a="{NS_A}">'
+                            f'  <a:lvl1pPr>'
+                            f'    <a:defRPr>'
+                            f'      <a:solidFill><a:srgbClr val="2A1F18"/></a:solidFill>'
+                            f'    </a:defRPr>'
+                            f'  </a:lvl1pPr>'
+                            f'</a:lstStyle>'
+                        )
+                        # Insert after bodyPr
+                        bodyPr = txBody.find(qn("a:bodyPr"))
+                        idx = list(txBody).index(bodyPr) + 1 if bodyPr is not None else 0
+                        txBody.insert(idx, etree.fromstring(lstStyle_xml))
+                    else:
+                        lvl1 = lstStyle.find(qn("a:lvl1pPr"))
+                        if lvl1 is None:
+                            lvl1_xml = (
+                                f'<a:lvl1pPr xmlns:a="{NS_A}">'
+                                f'  <a:defRPr>'
+                                f'    <a:solidFill><a:srgbClr val="2A1F18"/></a:solidFill>'
+                                f'  </a:defRPr>'
+                                f'</a:lvl1pPr>'
+                            )
+                            lstStyle.insert(0, etree.fromstring(lvl1_xml))
 
         # --- 4. Inject full-slide covering rectangle -------------------
         max_id = max(

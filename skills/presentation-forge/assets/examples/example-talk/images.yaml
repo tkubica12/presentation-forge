@@ -37,6 +37,7 @@ images:
       beans are stacked behind. Natural window light, industrial-warm
       mood. No faces clearly visible.
   - name: latte-art
+    size: "1536x1024"
     description: |
       Top-down close-up of a latte in a white ceramic cup showing
       intricate rosetta latte art. The foam pattern is sharp and
