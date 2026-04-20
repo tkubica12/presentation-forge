@@ -214,4 +214,5 @@ output/
 
 .templates/
 projects/
+.agents/
 
