@@ -146,24 +146,70 @@ always open them and read what's there.
 
 ## Using your corporate template
 
-Drop a `.potx` or `.pptx` template anywhere on disk (we suggest
-`.templates/` — gitignored) and tell the agent. It records the path
-plus layout-name mappings in `theme.yaml`:
+Your corporate `.potx` or `.pptx` template is the **structural backbone**
+of the deck — not just a stylesheet. The agent opens it as the starting
+PowerPoint file and adds your slides on top of it. That means everything
+your brand team baked into the template comes through automatically:
+
+- **Slide masters and layouts** — including all decorative shapes, logo
+  placements, footers, page-number positions.
+- **Theme** — color scheme, font scheme, format scheme.
+- **Default text styles** — heading and body fonts, sizes, paragraph
+  spacing.
+- **Slide dimensions** — 16:9, 4:3, custom A4, whatever the template
+  uses.
+- **Background graphics on layouts** — e.g. the wireframe globe in the
+  corner of a "section" layout, the giant quote-mark glyph behind a
+  "quote" layout. These show up automatically on the right slide kinds
+  because the agent picks the matching template layout *by name*.
+
+Open the resulting `final.pptx` in PowerPoint and look at View → Slide
+Master — you'll see your template's masters there, untouched. The deck
+looks native to your brand.
+
+### Where to put the template
+
+Drop the `.potx` or `.pptx` anywhere on disk. We suggest a `.templates/`
+folder at the repo root — it's gitignored, which keeps brand assets out
+of source control. Both `.potx` (PowerPoint template) and `.pptx`
+(regular presentation) work; `.potx` is normalized internally before use.
+
+### Telling the agent about it
+
+Point `theme.yaml` at the template path and **map your logical layout
+names to the layout names that exist in the template**. The agent will
+help you discover the names (open the template in PowerPoint → View →
+Slide Master, or ask the agent to inspect it):
 
 ```yaml
-template: ../../path/to/your-corporate-template.potx
+template: ../../.templates/your-corporate-template.potx
+
 layouts:
-  cover: "Title Slide 1"
-  bullets: "Title and Content"
-  quote: "Quote"
-  full-bleed-image: "Photo full bleed lower title"
-  # ... one entry per layout you use
+  cover:              "Title Slide 1"
+  section-divider:    "Section Slide 1"
+  bullets:            "Title and Content"
+  bullets-with-image: "Photo Slide 1"
+  full-bleed-image:   "Photo full bleed lower title"
+  quote:              "Quote"
+  two-column:         "Two Column Bullet text"
+  image-grid:         "Three Filmstrip Photos"
+  # ... only the layouts you actually use need a mapping
+
 metadata:
   author: "you@company.com"
 ```
 
-Layout names must match what's in the template (open it in PowerPoint →
-View → Slide Master to see them). The agent will help you map them.
+You only need to map the layouts your deck actually uses. The
+left-hand side is our fixed vocabulary (`cover`, `bullets`, `quote`,
+…); the right-hand side is the **exact** layout name as it appears in
+your template — names must match character-for-character.
+
+### What if I don't supply a template
+
+Builds still work, using PowerPoint's plain default master. No brand,
+no decorations, generic fonts and colors. Fine for a smoke test;
+not what you want to present from. Always wire up a real template
+before final.
 
 ## A few principles worth knowing
 
