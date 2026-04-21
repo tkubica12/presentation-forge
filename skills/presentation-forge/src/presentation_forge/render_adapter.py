@@ -404,10 +404,16 @@ def slide_to_content(
                 body_font = 30
             else:
                 body_font = 36
-            _Q_LEFT = 1.0
-            _Q_TOP = 1.6
-            _Q_W = SLIDE_W - 2.0
-            _Q_H = 4.4
+            # Indent the body inward so it never collides with the
+            # decorative quote-mark glyph baked into the template's Quote
+            # layout (top-left of the slide). Symmetric margin on the
+            # right keeps the centered look balanced. Height is sized so
+            # the attribution that follows still sits visually with the
+            # quote rather than at the very bottom of the slide.
+            _Q_LEFT = 1.8
+            _Q_TOP = 1.4
+            _Q_W = SLIDE_W - 3.6
+            _Q_H = 3.4
             elements.append({
                 "type": "textbox",
                 "left": _Q_LEFT,
