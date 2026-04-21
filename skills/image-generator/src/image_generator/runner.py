@@ -144,8 +144,10 @@ async def _run_task(
     client: httpx.AsyncClient,
     global_sem: asyncio.Semaphore,
     model_sems: dict[str, asyncio.Semaphore],
+    progress: "Progress",
 ) -> tuple[Task, bool, Optional[str]]:
     if task.output_path.exists() and task.output_path.stat().st_size > 0:
+        progress.tick(task, "cached")
         return task, True, "exists"
     task.output_path.parent.mkdir(parents=True, exist_ok=True)
     model_sem = model_sems[task.model]
@@ -159,6 +161,7 @@ async def _run_task(
                         "Skipping %s — MAI does not accept input images",
                         task.output_path,
                     )
+                    progress.tick(task, "skipped")
                     return task, False, "mai-no-input-image"
                 png = await generate_mai_image(
                     endpoint=endpoint,
@@ -180,13 +183,35 @@ async def _run_task(
                     client=client,
                 )
             task.output_path.write_bytes(png)
+            progress.tick(task, "generated")
             return task, True, "generated"
         except GenerationError as exc:
             log.error("FAIL %s: %s", task.output_path, exc)
+            progress.tick(task, "failed")
             return task, False, str(exc)
         except Exception as exc:  # noqa: BLE001
             log.exception("Unexpected failure for %s", task.output_path)
+            progress.tick(task, "failed")
             return task, False, f"{type(exc).__name__}: {exc}"
+
+
+class Progress:
+    """Thread-safe, line-oriented progress reporter for image tasks."""
+
+    def __init__(self, total: int) -> None:
+        self.total = total
+        self.done = 0
+        self._lock = asyncio.Lock()
+
+    def tick(self, task: "Task", status: str) -> None:
+        # Cheap, no-await counter increment + stdout write.
+        self.done += 1
+        msg = (
+            f"[{self.done:>3}/{self.total:>3}] {task.image_name} "
+            f"{task.model} v{task.variation_index:02d} i{task.instance_index:02d} "
+            f"→ {status}"
+        )
+        print(msg, flush=True)
 
 
 async def run_job(cfg: JobConfig, *, endpoint: str) -> dict:
@@ -229,6 +254,7 @@ async def run_job(cfg: JobConfig, *, endpoint: str) -> dict:
         )
         global_sem = asyncio.Semaphore(cfg.parallelism)
         model_sems = {m: asyncio.Semaphore(per_model) for m in cfg.models}
+        progress = Progress(total=len(tasks))
         results = await asyncio.gather(
             *[
                 _run_task(
@@ -240,6 +266,7 @@ async def run_job(cfg: JobConfig, *, endpoint: str) -> dict:
                     client=client,
                     global_sem=global_sem,
                     model_sems=model_sems,
+                    progress=progress,
                 )
                 for t in tasks
             ]

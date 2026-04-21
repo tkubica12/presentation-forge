@@ -177,16 +177,68 @@ def test_quote_wraps_body_in_smart_quotes_and_em_dash_attribution():
         subtitle="Gandhi",
     )
     c = slide_to_content(s)
-    roles = DEFAULT_PLACEHOLDER_ROLES["quote"]
-    assert c["placeholders"][roles.body] == "\u201cBe the change.\u201d"
-    assert c["placeholders"][roles.secondary] == "\u2014 Gandhi"
+    # New design: quote is rendered with explicit textboxes for better
+    # vertical balance — no body/secondary placeholders are populated.
+    elements = c.get("elements", [])
+    texts = [e.get("text", "") for e in elements if e.get("type") == "textbox"]
+    assert any(t == "\u201cBe the change.\u201d" for t in texts), texts
+    assert any(t == "\u2014 Gandhi" for t in texts), texts
+    # Body box should sit visibly above the bottom half (top < 4 inches).
+    body_box = next(e for e in elements if e.get("text", "").startswith("\u201c"))
+    assert body_box["top"] < 4.0
 
 
 def test_quote_without_attribution_omits_secondary():
     s = _slide(layout="quote", body="Just a thought.")
     c = slide_to_content(s)
-    roles = DEFAULT_PLACEHOLDER_ROLES["quote"]
-    assert roles.secondary not in c.get("placeholders", {})
+    elements = c.get("elements", [])
+    texts = [e.get("text", "") for e in elements if e.get("type") == "textbox"]
+    assert any(t == "\u201cJust a thought.\u201d" for t in texts)
+    # No em-dash attribution textbox.
+    assert not any(t.startswith("\u2014") for t in texts)
+
+
+def test_cover_layout_emits_image_dark_panel_and_title():
+    s = _slide(
+        layout="cover",
+        title="My Talk",
+        subtitle="A subtitle",
+        image_ref="hero",
+    )
+    c = slide_to_content(s, image_paths=[Path("/tmp/hero.png")])
+    elements = c.get("elements", [])
+    types = [e.get("type") for e in elements]
+    # Background image, dark left panel, title, subtitle.
+    assert types[0] == "image"
+    assert any(e.get("type") == "shape" for e in elements), "missing dark panel"
+    panel = next(e for e in elements if e.get("type") == "shape")
+    # Panel covers the LEFT HALF only.
+    assert panel["left"] == 0
+    assert panel["width"] <= 13.333 / 2 + 0.01
+    # White-on-dark title sits in the left half too.
+    title_box = next(
+        e for e in elements
+        if e.get("type") == "textbox" and e.get("text") == "My Talk"
+    )
+    assert title_box["left"] < 6.7
+    # No title placeholder used (we draw text manually).
+    assert "placeholders" not in c or not c["placeholders"]
+
+
+def test_cover_layout_uses_no_template_placeholders():
+    s = _slide(
+        layout="cover",
+        title="Solo Title",
+        image_ref="hero",
+    )
+    c = slide_to_content(s, image_paths=[Path("/tmp/hero.png")])
+    # Cover renders entirely via elements; placeholders dict should be empty.
+    assert "placeholders" not in c or not c["placeholders"]
+    elements = c.get("elements", [])
+    types = [e.get("type") for e in elements]
+    # Image and the dark panel must come before the title textbox.
+    assert "image" in types and "shape" in types
+    assert types.index("image") < types.index("textbox")
 
 
 def test_image_grid_lays_out_three_tiles():
@@ -288,7 +340,7 @@ def test_notes_are_passed_through_stripped():
         {"slide-id": "x", "layout": "title", "title": "T", "notes": "  hello  \n"}
     )
     c = slide_to_content(s)
-    assert c["notes"] == "hello"
+    assert c["speaker_notes"] == "hello"
 
 
 def test_empty_bullets_emit_no_body_placeholder():

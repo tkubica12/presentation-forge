@@ -41,6 +41,13 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Compile prompts only; do not call image generation APIs.",
     )
+    parser.add_argument(
+        "--only",
+        help=(
+            "Comma-separated image names; restrict generation to these refs. "
+            "Other entries in the YAML are skipped entirely."
+        ),
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
@@ -67,6 +74,24 @@ def main(argv: list[str] | None = None) -> int:
         cfg.parallelism = args.parallelism
     if args.parallelism_per_model:
         cfg.parallelism_per_model = args.parallelism_per_model
+    if args.only:
+        wanted = {n.strip() for n in args.only.split(",") if n.strip()}
+        known = {img.name for img in cfg.images}
+        unknown = wanted - known
+        if unknown:
+            sys.stderr.write(
+                f"ERROR: --only references unknown image(s): {sorted(unknown)}\n"
+                f"Known: {sorted(known)}\n"
+            )
+            return 2
+        cfg.images = [img for img in cfg.images if img.name in wanted]
+        if not cfg.images:
+            sys.stderr.write("ERROR: --only filter matched no images.\n")
+            return 2
+        print(
+            f"--only: limiting to {sorted(wanted)} ({len(cfg.images)} images)",
+            file=sys.stderr,
+        )
 
     if args.dry_run:
         # Just print what we would do.

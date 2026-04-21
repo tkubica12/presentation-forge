@@ -47,6 +47,8 @@ def _write_minimal_presentation_files(folder: Path, *, with_template: bool) -> N
             layout: title
             title: "Hello"
             subtitle: "World"
+            notes: |
+              Welcome speaker notes.
             ---
 
             ---

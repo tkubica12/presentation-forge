@@ -1,7 +1,7 @@
 ---
 name: presentation-forge
 description: |
-  Opinionated framework for building presentations from a text-first spec where the PPTX is just a build artifact. A presentation lives in a folder containing story.md (free-form narrative), slides.md (ordered slides with stable slide-ids and per-slide YAML frontmatter), images.yaml (consumed by the image-generator skill), theme.yaml (template + brand tokens), and selections.json (per-slide chosen image variant). The `forge` CLI scaffolds this folder, validates it, runs image generation, and renders draft.pptx (every variation as alternate slides) plus final.pptx (one image per slide using selections.json). Use this skill whenever the user wants to author or iterate on a presentation, especially when they want AI-generated images integrated into a narrative-first workflow. Triggers: "build a deck", "create a presentation", "draft slides about X", "generate a pitch deck", "iterate on my talk". Do NOT use for one-off slide edits in an existing PPTX the user already owns.
+  Opinionated framework for building presentations from a text-first spec where the PPTX is just a build artifact. A presentation lives in a folder containing story.md (free-form narrative), slides.yaml (ordered slides with stable slide-ids), images.yaml (consumed by the image-generator skill), theme.yaml (template + brand tokens), and selections.yaml (per-slide chosen image variant). The `forge` CLI scaffolds this folder, validates it, runs image generation, and renders draft.pptx (every variation as alternate slides) plus final.pptx (one image per slide using selections.yaml). Use this skill whenever the user wants to author or iterate on a presentation, especially when they want AI-generated images integrated into a narrative-first workflow. Triggers: "build a deck", "create a presentation", "draft slides about X", "generate a pitch deck", "iterate on my talk". Do NOT use for one-off slide edits in an existing PPTX the user already owns.
 license: MIT
 compatibility: |
   Requires Python 3.12+, the uv package manager, and (for image generation) the sibling `image-generator` skill from this repo plus an Azure AI Foundry resource (see image-generator's compatibility). PPTX rendering is in-house using python-pptx (no external skill dependency). Optional: LibreOffice (`soffice`) and Poppler (`pdftoppm`) for slide-thumbnail previews.
@@ -34,16 +34,20 @@ the system PPTX tooling for that.
 ```
 my-talk/
   story.md            # free-form narrative, audience, goals, references
-  slides.md           # ordered slides with stable slide-ids + YAML frontmatter
+  slides.yaml         # ordered list of slides (stable slide-ids + layout/content)
   images.yaml         # exact format the image-generator skill consumes
   theme.yaml          # template.pptx path + fonts + brand colors + logo
-  selections.json     # per-slide-id -> chosen image variant (state file)
+  selections.yaml     # per-slide-id -> chosen image variant (state file)
   build/
     state.json        # internal: per-slide content hash + last-built timestamp
     images/           # output_dir for image-generator (cached, idempotent)
     draft.pptx        # all image variations as alternate slides for review
-    final.pptx        # one image per slide based on selections.json
+    final.pptx        # one image per slide based on selections.yaml
 ```
+
+> **Legacy formats** (`slides.md`, `selections.json`) are still loaded
+> when present, so existing folders keep working. Convert any folder
+> with `forge migrate <folder>`.
 
 Every artifact except `build/` is meant to be human-edited and committed to
 version control.
@@ -60,7 +64,7 @@ Walk the user through, in this order:
    - What 3-5 supporting beats carry it?
    - What references / sources should the agent ground in (URLs, docs)?
 
-2. **Slides.md** — turn the story into an ordered list of slides. For each:
+2. **Slides.yaml** — turn the story into an ordered list of slides. For each:
    - Stable `slide-id` (kebab-case, never reuse).
    - One of the supported `layout` values (see
      [`references/SLIDES_FORMAT.md`](references/SLIDES_FORMAT.md)).
@@ -112,12 +116,40 @@ spec, not in the PPTX.
 
 | Command | Purpose |
 |---------|---------|
-| `forge new <dir>` | Scaffold story.md / slides.md / images.yaml / theme.yaml from templates. |
-| `forge validate` | Lint: slide-ids unique, image_refs resolve, theme exists, layouts valid. |
-| `forge images` | Run image-generator only (no PPTX). |
-| `forge build [--draft\|--final\|--both]` | Default `--both`. Generate images if missing, then build PPTX(s). |
-| `forge select <slide-id> <model> <variation> <instance>` | Update selections.json. |
-| `forge status` | Per-slide table: built? selected? changed since last build? |
+| `forge new <parent> <name>` | Scaffold story.md / slides.yaml / images.yaml / theme.yaml / selections.yaml from templates. |
+| `forge validate <folder>` | Lint: slide-ids unique, image_refs resolve, theme exists, layouts valid. |
+| `forge migrate <folder>` | Convert a legacy folder (`slides.md` + `selections.json`) to the unified YAML format. |
+| `forge images <folder> [--only ref1,ref2]` | Run image-generator only (no PPTX). `--only` restricts to specific image_refs. |
+| `forge regen-image <folder> <image_ref>` | Wipe `build/images/<ref>/` (PNGs + prompts.json) and regenerate that ref from scratch. |
+| `forge images-status <folder>` | Per-image_ref table: PNGs on disk vs expected. |
+| `forge build <folder> [--draft\|--final\|--both] [--skip-images\|--text-only] [--only ref1,ref2]` | Default both. `--skip-images` / `--text-only` skips image-gen entirely (text-only iteration). `--only` restricts image-gen to a subset. |
+| `forge select <folder> <slide-id> <model> <variation> <instance>` | Update selections.yaml. |
+| `forge status <folder>` | Per-slide table: built? selected? changed since last build? |
+
+If `final.pptx` is open in PowerPoint when you run `forge build`, the
+renderer falls back to writing `final-updated.pptx` (or
+`final-updated-2.pptx`, …) so the build never fails with a low-level
+`PermissionError`. A friendly message is printed to stderr.
+
+### Targeted regeneration
+
+```powershell
+# Just want to retry one image after editing its description?
+forge regen-image .\my-talk hero-shot
+
+# Or generate two specific refs without touching the rest?
+forge images .\my-talk --only hero-shot,closing-photo
+```
+
+### Text-only iteration
+
+Tweaking copy without touching images?
+
+```powershell
+forge build .\my-talk --text-only       # alias for --skip-images
+```
+
+Image-generator is not invoked; existing PNGs in `build/images/` are reused.
 
 Running pattern (same as image-generator — `uv --directory` changes CWD,
 so always pass absolute paths and explicit working-dir flags):

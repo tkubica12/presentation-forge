@@ -52,6 +52,10 @@ from .spec import Presentation, Selection, Theme
 # role expected by each Layout enum value.
 DEFAULT_AZURE_LAYOUTS: dict[str, str] = {
     Layout.TITLE.value: "Title Slide 1",
+    # Cover reuses the full-bleed photo layout; we replace its content with
+    # an image + dark left panel + title/subtitle textboxes (placeholders
+    # are intentionally not used).
+    Layout.COVER.value: "Photo full bleed lower title",
     Layout.SECTION_DIVIDER.value: "Section Slide 1",
     Layout.BULLETS.value: "Title and Content",
     Layout.BULLETS_WITH_IMAGE.value: "Photo Slide 1",
@@ -80,13 +84,18 @@ class PlaceholderRoles:
 
 DEFAULT_PLACEHOLDER_ROLES: dict[str, PlaceholderRoles] = {
     Layout.TITLE.value: PlaceholderRoles(title=0, body=12),
+    # Cover: title/subtitle drawn as textboxes inside left panel; no
+    # placeholders consumed.
+    Layout.COVER.value: PlaceholderRoles(title=None),
     Layout.SECTION_DIVIDER.value: PlaceholderRoles(title=0),
     Layout.BULLETS.value: PlaceholderRoles(title=0, body=10),
     # "Photo Slide 1": title=0 (top-left), body=12 (left below title), picture=10 (right half)
     Layout.BULLETS_WITH_IMAGE.value: PlaceholderRoles(title=0, body=12, picture=10),
     Layout.FULL_BLEED_IMAGE.value: PlaceholderRoles(title=0, picture=10),
     Layout.TWO_COLUMN.value: PlaceholderRoles(title=0, body=12, secondary=13),
-    Layout.QUOTE.value: PlaceholderRoles(title=0, body=12, secondary=18),
+    # Quote: we draw body + attribution as explicit textboxes for control
+    # over vertical position; placeholders are intentionally bypassed.
+    Layout.QUOTE.value: PlaceholderRoles(title=None),
     Layout.COMPARISON.value: PlaceholderRoles(title=0, body=12, secondary=13),
     Layout.IMAGE_GRID.value: PlaceholderRoles(title=0),
     Layout.IMAGE_SINGLE.value: PlaceholderRoles(title=0),
@@ -376,12 +385,135 @@ def slide_to_content(
             placeholders[roles.secondary] = right_lines
 
     elif slide.layout is Layout.QUOTE:
+        # Opinionated layout: large italic body up top, smaller attribution
+        # below. We bypass template placeholders to control vertical
+        # position so longer quotes still feel balanced rather than
+        # crammed into the bottom of the slide. No slide-level knobs.
         body = (slide.body or "").strip()
-        if body and roles.body is not None:
-            placeholders[roles.body] = f"\u201c{body}\u201d"
         attribution = _placeholder_value(slide.subtitle)
-        if attribution and roles.secondary is not None:
-            placeholders[roles.secondary] = f"\u2014 {attribution}"
+
+        if body:
+            quoted = f"\u201c{body}\u201d"
+            # Estimate body height: shrink text size for very long quotes.
+            n = len(body)
+            if n > 320:
+                body_font = 22
+            elif n > 200:
+                body_font = 26
+            elif n > 100:
+                body_font = 30
+            else:
+                body_font = 36
+            _Q_LEFT = 1.0
+            _Q_TOP = 1.6
+            _Q_W = SLIDE_W - 2.0
+            _Q_H = 4.4
+            elements.append({
+                "type": "textbox",
+                "left": _Q_LEFT,
+                "top": _Q_TOP,
+                "width": _Q_W,
+                "height": _Q_H,
+                "text": quoted,
+                "font_size": body_font,
+                "font_italic": True,
+                "vertical_alignment": "middle",
+                "alignment": "center",
+            })
+            if attribution:
+                elements.append({
+                    "type": "textbox",
+                    "left": _Q_LEFT,
+                    "top": _Q_TOP + _Q_H + 0.25,
+                    "width": _Q_W,
+                    "height": 0.6,
+                    "text": f"\u2014 {attribution}",
+                    "font_size": 16,
+                    "font_italic": False,
+                    "alignment": "center",
+                })
+        elif attribution:
+            elements.append({
+                "type": "textbox",
+                "left": 1.0,
+                "top": 5.5,
+                "width": SLIDE_W - 2.0,
+                "height": 0.6,
+                "text": f"\u2014 {attribution}",
+                "font_size": 16,
+                "alignment": "center",
+            })
+
+    elif slide.layout is Layout.COVER:
+        # Hero / title-cover: full-bleed background image, semi-transparent
+        # dark rectangle on the LEFT HALF, large title and smaller subtitle
+        # inside the panel. Reusable, opinionated, no per-slide knobs.
+        if image_paths:
+            elements.append(_image_element(
+                image_paths[0].name, 0.0, 0.0, SLIDE_W, SLIDE_H,
+                image_path=image_paths[0],
+                images_dir_name=images_dir_name,
+            ))
+        _PANEL_LEFT = 0.0
+        _PANEL_TOP = 0.0
+        _PANEL_W = SLIDE_W * 0.5
+        _PANEL_H = SLIDE_H
+        elements.append({
+            "type": "shape",
+            "shape_type": "rectangle",
+            "left": _PANEL_LEFT,
+            "top": _PANEL_TOP,
+            "width": _PANEL_W,
+            "height": _PANEL_H,
+            "fill": {"color": "#000000", "alpha": 55},
+            "line": {"width": 0},
+        })
+        v = _placeholder_value(title_text)
+        if v:
+            # Long title -> shrink. The placeholder is intentionally not
+            # used; layout/template title-style anchoring is unreliable
+            # across templates so we own positioning here.
+            n = len(v)
+            if n > 80:
+                title_font = 28
+            elif n > 40:
+                title_font = 36
+            else:
+                title_font = 44
+            _T_LEFT = 0.6
+            _T_W = _PANEL_W - 1.0
+            sub = _placeholder_value(slide.subtitle)
+            # Reserve room for subtitle if present.
+            if sub:
+                _T_TOP = 1.8
+                _T_H = 3.2
+            else:
+                _T_TOP = 2.4
+                _T_H = 2.7
+            elements.append({
+                "type": "textbox",
+                "left": _T_LEFT,
+                "top": _T_TOP,
+                "width": _T_W,
+                "height": _T_H,
+                "text": v,
+                "font_size": title_font,
+                "font_bold": True,
+                "font_color": "FFFFFF",
+                "vertical_alignment": "bottom",
+            })
+            if sub:
+                elements.append({
+                    "type": "textbox",
+                    "left": _T_LEFT,
+                    "top": _T_TOP + _T_H + 0.1,
+                    "width": _T_W,
+                    "height": 1.4,
+                    "text": sub,
+                    "font_size": 18,
+                    "font_color": "FFFFFF",
+                    "vertical_alignment": "top",
+                })
 
     elif slide.layout is Layout.IMAGE_GRID:
         # "Three Filmstrip Photos" has landscape PICTURE placeholders.
@@ -469,7 +601,8 @@ def slide_to_content(
     if elements:
         content["elements"] = elements
     if slide.notes:
-        content["notes"] = slide.notes.strip()
+        # hve-core's build_deck.py reads `speaker_notes`.
+        content["speaker_notes"] = slide.notes.strip()
     return content
 
 

@@ -5,7 +5,10 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+import yaml
 
 from . import render_adapter
 from .layouts import REQUIRED_FIELDS
@@ -106,25 +109,109 @@ def _fix_fullbleed_zorder(pptx_path: Path) -> None:
         prs.save(str(pptx_path))
 
 
-def run_images(pres: Presentation, *, parallelism: int | None = None) -> None:
-    """Shell out to the sibling image-generator skill."""
+def run_images(
+    pres: Presentation,
+    *,
+    parallelism: int | None = None,
+    only: list[str] | None = None,
+) -> None:
+    """Shell out to the sibling image-generator skill.
+
+    *only*: optional list of image_ref names to restrict generation to. When
+    provided, a temporary filtered images.yaml is written and passed to the
+    image-generator so other entries are skipped entirely.
+    """
     if not IMAGE_GENERATOR_DIR.exists():
         raise FileNotFoundError(
             f"sibling image-generator skill not found at {IMAGE_GENERATOR_DIR}. "
             f"Install it with: gh skill install tkubica12/presentation-forge image-generator"
         )
+
+    yaml_path = pres.images_yaml_path
+    tmp_yaml: Path | None = None
+    if only:
+        only_set = {o.strip() for o in only if o and o.strip()}
+        all_imgs = pres.images_yaml_data.get("images") or []
+        filtered = [img for img in all_imgs if img.get("name") in only_set]
+        unknown = only_set - {img.get("name") for img in all_imgs}
+        if unknown:
+            raise ValueError(
+                f"--only references unknown image_ref(s): {sorted(unknown)}"
+            )
+        if not filtered:
+            print("nothing to do (no matching image_refs)", flush=True)
+            return
+        data = dict(pres.images_yaml_data)
+        data["images"] = filtered
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+        )
+        tmp.write(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
+        tmp.close()
+        tmp_yaml = Path(tmp.name)
+        yaml_path = tmp_yaml
+        print(
+            f"image-generator scope: only {sorted(only_set)} "
+            f"({len(filtered)} of {len(all_imgs)} entries)",
+            flush=True,
+        )
+
     uv = _find_uv()
     cmd = [
         uv, "--directory", str(IMAGE_GENERATOR_DIR), "run", "generate-images",
-        str(pres.images_yaml_path),
+        str(yaml_path),
         "--output-dir", str(pres.images_dir),
     ]
     if parallelism is not None:
         cmd.extend(["--parallelism", str(parallelism)])
     print(f"$ {' '.join(cmd)}", flush=True)
-    rc = subprocess.call(cmd, env=os.environ.copy())
+    try:
+        rc = subprocess.call(cmd, env=_subprocess_env())
+    finally:
+        if tmp_yaml is not None:
+            try:
+                tmp_yaml.unlink()
+            except OSError:
+                pass
     if rc != 0:
         raise RuntimeError(f"image-generator exited with code {rc}")
+
+
+def _subprocess_env() -> dict[str, str]:
+    """Subprocess env with UTF-8 stdio so non-ASCII titles don't crash on Windows."""
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PYTHONUTF8", "1")
+    return env
+
+
+def _is_locked(path: Path) -> bool:
+    """Best-effort detection of a Windows-locked output file.
+
+    On Windows, opening a file that PowerPoint holds with append-mode
+    will raise PermissionError. Returns True if the file is locked.
+    """
+    if not path.exists():
+        return False
+    try:
+        with open(path, "a"):
+            pass
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+def _alternate_output(path: Path) -> Path:
+    """Return ``<stem>-updated[.<n>].<suffix>`` next to *path*."""
+    stem, suffix, parent = path.stem, path.suffix, path.parent
+    candidate = parent / f"{stem}-updated{suffix}"
+    n = 2
+    while candidate.exists() and _is_locked(candidate):
+        candidate = parent / f"{stem}-updated-{n}{suffix}"
+        n += 1
+    return candidate
 
 
 def _render_one(pres: Presentation, *, mode: str, output: Path) -> Path:
@@ -136,32 +223,50 @@ def _render_one(pres: Presentation, *, mode: str, output: Path) -> Path:
         )
     workdir = pres.build_dir / f"_hve_{mode}"
     paths = render_adapter.materialize_workspace(pres, workdir=workdir, mode=mode)
-    output.parent.mkdir(parents=True, exist_ok=True)
+
+    # If the desired output is open in PowerPoint (Windows lock), divert
+    # to a sibling filename so the user doesn't lose the rebuild.
+    actual_output = output
+    if _is_locked(output):
+        actual_output = _alternate_output(output)
+        print(
+            f"⚠  {output.name} is locked (open in PowerPoint?). "
+            f"Writing to {actual_output.name} instead.",
+            flush=True,
+        )
+
+    actual_output.parent.mkdir(parents=True, exist_ok=True)
     uv = _find_uv()
     cmd = [
         uv, "--directory", str(PPTX_RENDER_DIR), "run",
         "python", str(BUILD_DECK_SCRIPT),
         "--content-dir", str(paths.content_dir),
         "--style", str(paths.style_path),
-        "--output", str(output),
+        "--output", str(actual_output),
     ]
     if paths.template_path is not None:
         cmd.extend(["--template", str(paths.template_path)])
     print(f"$ {' '.join(cmd)}", flush=True)
-    rc = subprocess.call(cmd, env=os.environ.copy())
+    rc = subprocess.call(cmd, env=_subprocess_env())
     if rc != 0:
         raise RuntimeError(f"build_deck.py exited with code {rc}")
-    if not output.exists():
-        raise RuntimeError(f"build_deck.py did not produce expected output: {output}")
-    _fix_fullbleed_zorder(output)
-    return output
+    if not actual_output.exists():
+        raise RuntimeError(f"build_deck.py did not produce expected output: {actual_output}")
+    _fix_fullbleed_zorder(actual_output)
+    return actual_output
 
 
 def build(pres: Presentation, *, draft: bool = True, final: bool = True,
-          run_image_gen: bool = True) -> dict[str, Path]:
-    """Run the full build. Returns paths of generated artifacts."""
+          run_image_gen: bool = True, only: list[str] | None = None) -> dict[str, Path]:
+    """Run the full build. Returns paths of generated artifacts.
+
+    *only*: optional list of image_ref names; when provided, image generation
+    is restricted to those refs (other refs are NOT regenerated and existing
+    PNGs are reused). Has no effect on the rendered PPTX (which always
+    includes all slides).
+    """
     if run_image_gen:
-        run_images(pres)
+        run_images(pres, only=only)
     pres.build_dir.mkdir(parents=True, exist_ok=True)
     state = State.load(pres.state_path)
 
@@ -180,6 +285,60 @@ def build(pres: Presentation, *, draft: bool = True, final: bool = True,
     ))
     state.save(pres.state_path)
     return out
+
+
+def regenerate_image(pres: Presentation, image_ref: str) -> None:
+    """Wipe the cache for *image_ref* and regenerate from scratch.
+
+    Removes ``build/images/<image_ref>/`` (PNGs + prompts.json) so the
+    image-generator regenerates everything (including prompts) instead of
+    reusing stale outputs.
+    """
+    if image_ref not in pres.image_names_in_yaml():
+        raise ValueError(f"unknown image_ref {image_ref!r}; not in images.yaml")
+    target = pres.images_dir / image_ref
+    if target.exists():
+        shutil.rmtree(target)
+        print(f"removed {target}", flush=True)
+    run_images(pres, only=[image_ref])
+
+
+def images_status(pres: Presentation) -> list[dict]:
+    """Per-image_ref status: expected variants × instances vs PNGs found."""
+    yaml_data = pres.images_yaml_data
+    var_count = int(yaml_data.get("variations_count")
+                    or yaml_data.get("variations_per_image") or 4)
+    inst_count = int(yaml_data.get("instances_per_prompt")
+                     or yaml_data.get("instances_per_variation") or 1)
+    rows: list[dict] = []
+    for entry in (yaml_data.get("images") or []):
+        ref = entry.get("name")
+        if not ref:
+            continue
+        base = pres.images_dir / ref
+        models: list[str] = []
+        png_count = 0
+        if base.exists():
+            for model_dir in sorted(p for p in base.iterdir() if p.is_dir()):
+                models.append(model_dir.name)
+                png_count += sum(
+                    1 for f in model_dir.iterdir() if f.suffix.lower() == ".png"
+                )
+        expected_per_model = var_count * inst_count
+        rows.append({
+            "image_ref": ref,
+            "models": models,
+            "pngs_found": png_count,
+            "expected_per_model": expected_per_model,
+            "complete": bool(models)
+                and all(
+                    sum(
+                        1 for f in (base / m).iterdir() if f.suffix.lower() == ".png"
+                    ) >= expected_per_model
+                    for m in models
+                ),
+        })
+    return rows
 
 
 def status(pres: Presentation) -> list[dict]:

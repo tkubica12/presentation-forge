@@ -6,6 +6,7 @@ from enum import Enum
 
 class Layout(str, Enum):
     TITLE = "title"
+    COVER = "cover"
     SECTION_DIVIDER = "section-divider"
     BULLETS = "bullets"
     BULLETS_WITH_IMAGE = "bullets-with-image"
@@ -21,6 +22,7 @@ class Layout(str, Enum):
 
 REQUIRED_FIELDS: dict[Layout, set[str]] = {
     Layout.TITLE: {"title"},
+    Layout.COVER: {"title", "image_ref"},
     Layout.SECTION_DIVIDER: {"title"},
     Layout.BULLETS: {"title", "bullets"},
     Layout.BULLETS_WITH_IMAGE: {"title", "bullets", "image_ref"},
@@ -37,6 +39,7 @@ REQUIRED_FIELDS: dict[Layout, set[str]] = {
 
 def needs_image(layout: Layout) -> bool:
     return layout in {
+        Layout.COVER,
         Layout.BULLETS_WITH_IMAGE,
         Layout.FULL_BLEED_IMAGE,
         Layout.IMAGE_GRID,

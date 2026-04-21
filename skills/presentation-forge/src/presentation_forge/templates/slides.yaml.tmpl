@@ -1,0 +1,25 @@
+# slides.yaml — list of slide dicts.
+# Schema is identical to the YAML blocks of the legacy slides.md.
+# See references/SLIDES_FORMAT.md for the full layout reference.
+
+- slide-id: title
+  layout: title
+  title: "{{NAME}}"
+  subtitle: "Subtitle here"
+  notes: |
+    Speaker notes for opening.
+
+- slide-id: agenda
+  layout: bullets
+  title: "Today"
+  bullets:
+    - First topic
+    - Second topic
+    - Third topic
+  notes: |
+    Brief overview, ~30 seconds.
+
+- slide-id: closing
+  layout: section-divider
+  title: "Thank you"
+  subtitle: "Questions?"

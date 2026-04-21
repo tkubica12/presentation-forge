@@ -82,10 +82,14 @@ def test_render_final_pptx_matches_template_layouts(
     body = s3_texts.get(10, "")
     assert "first thing" in body and "second thing" in body and "third thing" in body
 
-    # Slide 5: quote — body and attribution should have curly punctuation
-    s5_texts = {ph.placeholder_format.idx: ph.text_frame.text for ph in prs.slides[4].placeholders}
-    assert "\u201c" in s5_texts.get(12, "") and "\u201d" in s5_texts.get(12, "")
-    assert s5_texts.get(18, "").startswith("\u2014 ")
+    # Slide 5: quote — rendered as textboxes (not placeholders) for better
+    # vertical balance. The full slide text frame should still contain the
+    # smart-quoted body and the em-dash attribution.
+    s5_text = "\n".join(
+        sh.text_frame.text for sh in prs.slides[4].shapes if sh.has_text_frame
+    )
+    assert "\u201c" in s5_text and "\u201d" in s5_text
+    assert "\u2014 " in s5_text
 
     # Slide 6: image-single — title
     s6_texts = {ph.placeholder_format.idx: ph.text_frame.text for ph in prs.slides[5].placeholders}
@@ -100,7 +104,8 @@ def test_render_final_pptx_matches_template_layouts(
     assert s8_texts.get(0) == "Thanks"
 
     # Notes preserved on slide 1
-    assert prs.slides[0].notes_slide is not None  # may auto-create
+    assert prs.slides[0].notes_slide is not None
+    assert "Welcome speaker notes." in prs.slides[0].notes_slide.notes_text_frame.text
 
     # Single master inherited from the Microsoft template
     assert len(prs.slide_masters) == 1

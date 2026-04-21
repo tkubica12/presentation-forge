@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from .slides_parser import Slide, parse_slides_md
+from .slides_parser import Slide, parse_slides_md, parse_slides_yaml
 
 
 @dataclass
@@ -99,7 +99,15 @@ class Presentation:
 
     @property
     def selections_path(self) -> Path:
-        return self.folder / "selections.json"
+        # Prefer the new YAML format. Fall back to legacy JSON only if it
+        # actually exists. New projects always write YAML.
+        json_path = self.folder / "selections.json"
+        yaml_path = self.folder / "selections.yaml"
+        if yaml_path.exists():
+            return yaml_path
+        if json_path.exists():
+            return json_path
+        return yaml_path
 
     @property
     def draft_pptx(self) -> Path:
@@ -116,7 +124,11 @@ class Presentation:
 def _load_selections(path: Path) -> dict[str, Selection | None]:
     if not path.exists():
         return {}
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() in (".yaml", ".yml"):
+        raw = yaml.safe_load(text) or {}
+    else:
+        raw = json.loads(text)
     out: dict[str, Selection | None] = {}
     for sid, val in raw.items():
         if val is None:
@@ -141,7 +153,10 @@ def save_selections(path: Path, selections: dict[str, Selection | None]) -> None
                 "variation": sel.variation,
                 "instance": sel.instance,
             }
-    path.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
+    if path.suffix.lower() in (".yaml", ".yml"):
+        path.write_text(yaml.safe_dump(out, sort_keys=False), encoding="utf-8")
+    else:
+        path.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
 
 
 def load_presentation(folder: Path) -> Presentation:
@@ -150,19 +165,41 @@ def load_presentation(folder: Path) -> Presentation:
         raise FileNotFoundError(f"not a directory: {folder}")
 
     story = folder / "story.md"
+    slides_yaml = folder / "slides.yaml"
     slides_md = folder / "slides.md"
     images_yaml = folder / "images.yaml"
     theme_yaml = folder / "theme.yaml"
-    selections = folder / "selections.json"
 
-    for required in (slides_md, images_yaml, theme_yaml):
+    # Prefer YAML for slides + selections; fall back to legacy formats.
+    if slides_yaml.exists():
+        slides_path = slides_yaml
+    elif slides_md.exists():
+        slides_path = slides_md
+    else:
+        raise FileNotFoundError(
+            f"missing required slides file: {slides_yaml} (or legacy {slides_md})"
+        )
+
+    for required in (images_yaml, theme_yaml):
         if not required.exists():
             raise FileNotFoundError(f"missing required file: {required}")
 
-    slides = parse_slides_md(slides_md)
+    if slides_path.suffix == ".yaml":
+        slides = parse_slides_yaml(slides_path)
+    else:
+        slides = parse_slides_md(slides_path)
+
     images_data = yaml.safe_load(images_yaml.read_text(encoding="utf-8")) or {}
     theme = Theme.from_dict(yaml.safe_load(theme_yaml.read_text(encoding="utf-8")) or {}, folder)
-    sels = _load_selections(selections)
+
+    sel_yaml = folder / "selections.yaml"
+    sel_json = folder / "selections.json"
+    if sel_yaml.exists():
+        sels = _load_selections(sel_yaml)
+    elif sel_json.exists():
+        sels = _load_selections(sel_json)
+    else:
+        sels = {}
 
     # Initialize null selections for any slide-id that doesn't have one yet.
     for slide in slides:

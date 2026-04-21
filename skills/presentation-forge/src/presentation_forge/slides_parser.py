@@ -80,7 +80,7 @@ class Slide:
 
 
 def parse_slides_md(path: Path) -> list[Slide]:
-    """Parse slides.md.
+    """Parse legacy slides.md.
 
     Format: each slide is a YAML frontmatter block delimited by lines of
     exactly three dashes (---). Empty lines between blocks are tolerated.
@@ -112,3 +112,72 @@ def parse_slides_md(path: Path) -> list[Slide]:
     if not slides:
         raise ValueError(f"no slides found in {path}")
     return slides
+
+
+def parse_slides_yaml(path: Path) -> list[Slide]:
+    """Parse slides.yaml — a top-level list of slide dicts.
+
+    The schema for each entry is identical to a slides.md frontmatter
+    block (slide-id, layout, title, bullets, body, image_ref, ...).
+    A top-level mapping with a ``slides:`` key is also accepted, for
+    forward-compatibility with future shared metadata.
+    """
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        raise ValueError(f"YAML parse error in {path}: {e}") from e
+    if isinstance(data, dict) and "slides" in data:
+        data = data["slides"]
+    if data is None:
+        raise ValueError(f"no slides found in {path}")
+    if not isinstance(data, list):
+        raise ValueError(
+            f"{path}: expected a list of slide dicts at the top level "
+            f"(or a mapping with `slides:` key)"
+        )
+    slides: list[Slide] = []
+    seen_ids: set[str] = set()
+    for entry in data:
+        if not isinstance(entry, dict):
+            raise ValueError(f"{path}: every slide entry must be a mapping, got {entry!r}")
+        slide = Slide.from_block(entry)
+        if slide.slide_id in seen_ids:
+            raise ValueError(f"duplicate slide-id {slide.slide_id!r}")
+        seen_ids.add(slide.slide_id)
+        slides.append(slide)
+    if not slides:
+        raise ValueError(f"no slides found in {path}")
+    return slides
+
+
+def _yaml_str_representer(dumper, data):
+    """Use literal block style for multiline strings (cleaner output)."""
+    if "\n" in data:
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+class _PrettyDumper(yaml.SafeDumper):
+    pass
+
+
+_PrettyDumper.add_representer(str, _yaml_str_representer)
+
+
+def slides_to_yaml_text(slides: list[Slide]) -> str:
+    """Serialize a list of slides back to a slides.yaml document.
+
+    Round-trips the original ``raw`` mapping captured at parse time so
+    field order and any author-specific keys (within the schema) survive
+    migration. Multiline strings are written as literal block scalars
+    (``|``) for readability.
+    """
+    out = [dict(s.raw) for s in slides]
+    return yaml.dump(
+        out,
+        Dumper=_PrettyDumper,
+        sort_keys=False,
+        allow_unicode=True,
+        width=100,
+    )
