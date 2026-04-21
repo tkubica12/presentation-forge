@@ -1,155 +1,190 @@
 # presentation-forge
 
-Opinionated agent-driven framework for building presentations from text.
-Story and structured slide specs are the **source of truth**; the PPTX is
-just a build artifact regenerated from those specs each time.
+Build presentations by **talking to an agent**. You describe what you
+want; the agent maintains a small set of plain-text files that fully
+describe the deck, and renders the final `.pptx` from them. The PPTX is
+just a build artifact — your real source of truth is the text.
 
-This repo ships two `agentskills.io`-compatible skills:
+This is not a CLI you run by hand. It's a set of agent skills your AI
+assistant uses on your behalf. You stay in the conversation; the agent
+edits the files, generates the images, and produces the deck.
 
-# presentation-forge
+## What's in this repo
 
-Opinionated agent-driven framework for building presentations from text.
-Story and structured slide specs are the **source of truth**; the PPTX is
-just a build artifact regenerated from those specs each time.
+Three [`agentskills.io`](https://agentskills.io)-compatible skills your
+agent installs once and then uses together:
 
-This repo ships three `agentskills.io`-compatible skills:
+| Skill | What it does for you |
+|-------|----------------------|
+| [`presentation-forge`](./skills/presentation-forge) | Owns the deck spec (`story.md`, `slides.yaml`, `images.yaml`, `theme.yaml`, `selections.yaml`) and produces draft + final PPTX. |
+| [`image-generator`](./skills/image-generator) | Generates AI image variants from a YAML brief using Azure AI Foundry models. |
+| [`pptx-render`](./skills/pptx-render) | Composes slides onto your corporate `.potx`/`.pptx` template so the deck looks native. |
 
-| Skill | Purpose |
-|-------|---------|
-| [`image-generator`](./skills/image-generator) | Generate image series (with variations + instances) from a YAML brief, using Azure AI Foundry models (MAI-Image-2 + gpt-image-1.5) with Entra auth, parallelism, and retry. |
-| [`presentation-forge`](./skills/presentation-forge) | Author + build the deck. Owns `story.md`, `slides.md`, `images.yaml`, `theme.yaml`, `selections.json`. Calls `image-generator` for visuals; calls `pptx-render` to produce the `.pptx`. |
-| [`pptx-render`](./skills/pptx-render) | Vendored copy of [`microsoft/hve-core`](https://github.com/microsoft/hve-core)'s PowerPoint renderer. Composes slides onto your corporate `.pptx`/`.potx` template (masters, layouts, fonts, colors all inherited). |
-
-## Agentic workflow (the short version)
-
-You drive the agent in **English**; the agent maintains a folder of
-plain-text files. Each step has a "ready when" exit condition before
-moving on.
+Install once:
 
 ```
-folder/
-├── story.md          # ← step 1
-├── slides.md         # ← step 2
-├── images.yaml       # ← step 2 (image briefs)
-├── theme.yaml        # ← created once per template
-├── selections.json   # ← step 4 (which image variant per slide)
-└── build/
-    ├── images/...    # ← step 3 outputs
-    ├── draft.pptx    # ← step 3 (one slide per image variant)
-    └── final.pptx    # ← step 5
+gh skill install tkubica12/presentation-forge presentation-forge
+gh skill install tkubica12/presentation-forge image-generator
+gh skill install tkubica12/presentation-forge pptx-render
 ```
 
-### Step 1 — Co-author the story
-> *"Help me draft a story for a 10-min internal pitch on Aurora Coffee's Q3 launch. Audience is execs. Goal is to get budget approval."*
+Image generation needs Azure AI Foundry credentials — the
+`image-generator` skill walks you through `.env` setup.
 
-The agent asks ~3-5 clarifying questions (audience, tone, key claim,
-constraint, call-to-action) and writes `story.md` — a tight prose
-narrative, **not** slide bullets. **Ready when:** you can read it aloud
-and it flows.
+## How a deck gets built — the conversation flow
 
-### Step 2 — Co-author slides + image briefs
-> *"Now turn that story into slides. Use ~8 slides, mostly bullets-with-image. Quote slide for the founder line."*
+Each step is a chat with the agent. Each step ends with a file you and
+the agent can both read and edit. You never need to know the CLI; the
+agent handles it.
 
-The agent produces:
-- **`slides.md`** — one YAML block per slide (`title`, `layout`, `bullets`, `image_ref`, `notes`). 10 layouts to choose from (`title`, `bullets`, `bullets-with-image`, `full-bleed-image`, `quote`, `two-column`, `image-grid`, …). See [`SLIDES_FORMAT.md`](./skills/presentation-forge/references/SLIDES_FORMAT.md).
-- **`images.yaml`** — one entry per `image_ref` with the prompt for the image generator (style, subject, mood, negative prompts).
+### 1. The story — `story.md`
 
-Iterate in chat: *"slide 4 should be a comparison, not bullets"*, *"the hero image should feel cinematic, not stocky"*. **Ready when:** `forge validate` passes (no missing fields, every `image_ref` resolves).
+You tell the agent what the talk is about. The agent asks a handful of
+clarifying questions and writes a tight prose narrative.
 
-### Step 3 — Generate images and a draft deck
-> *"Generate images and build the draft."*
+> *"Help me draft a 10-minute internal pitch on Aurora Coffee's Q3
+> launch. Audience is execs. Goal is to get budget approval."*
 
-Agent runs:
+`story.md` is **prose, not slides** — audience, central claim, the 3–5
+beats that carry it, the call to action, any sources to ground in.
+You're done when you can read it aloud and it flows.
 
-    forge build <folder>
+### 2. The slide structure — `slides.yaml`
 
-This: (a) fans out the prompts to `image-generator` (default: 3 models × 3 variations × 1 instance ≈ 9 candidates per `image_ref`); (b) renders **`draft.pptx`** with **one slide per variant** for image-bearing slides (so slide "hero" appears 9 times, each labeled with model+v+i).
+You ask the agent to turn the story into slides. Together you decide,
+slide by slide:
 
-### Step 4 — Review and decide, per image
-Open `draft.pptx`, look at the variants, then tell the agent your verdict for each slide. Three kinds of feedback:
+- **Layout** — `cover` (hero title), `bullets`, `bullets-with-image`,
+  `full-bleed-image`, `quote`, `two-column`, `image-grid`, … Discuss
+  what fits each beat.
+- **Title and bullets** — short and scannable; the agent drafts, you
+  push back.
+- **Where images belong** — not every slide needs art. Decide which
+  slides carry a visual and give that visual a stable name (an
+  `image_ref`).
+- **Speaker notes** — if you want any; they end up in PPTX notes.
+
+Iterate in chat: *"slide 4 should be a comparison, not bullets"*,
+*"drop slide 7, merge into 8"*, *"add a quote slide after the intro"*.
+
+### 3. The image briefs — `images.yaml`
+
+For every `image_ref` you used, you tell the agent what the image
+should look like. Three layers:
+
+- **General visual style** at the top (`common_requirements`) —
+  palette, mood, lighting, framing. Treat this as the "house style"
+  for the whole deck. Spend time here; it affects every image.
+- **Per-image description** — what *this specific* image shows.
+- **Variations** — 2–4 alternate takes per image so you have something
+  to choose between (e.g. *"close-up vs wide shot vs top-down"*).
+
+The agent fans these out across multiple AI models so you typically get
+several candidates per image.
+
+### 4. The draft deck
+
+You ask the agent to build the draft. It generates all the images
+(cached, resumable — fine to interrupt and continue later) and produces
+**`build/draft.pptx`**. The draft contains **every image variant as a
+separate slide**, each labeled with its variant tag.
+
+You open `draft.pptx` in PowerPoint and review.
+
+### 5. Picking variants — `selections.yaml`
+
+You walk through the draft and tell the agent which variant you want
+per slide. Easiest way: copy the variant label from the draft slide and
+paste it into chat.
+
+> *"For 'hero', take the gpt-image-1 v02 i01 variant."*
+> *"For 'pour-over', none of these work — make it warmer, top-down, less
+> clinical, and regenerate."*
+> *"Slide 4's title is too long — tighten it."*
+
+The agent handles each kind of feedback differently:
 
 | You say | Agent does |
 |---|---|
-| *"For 'hero', pick the gpt-image-1 v02 i01."* | Records into `selections.json`. |
-| *"None of the 'pour-over' variants work — make it warmer, less clinical, top-down angle."* | Edits `images.yaml`'s `pour-over` prompt. Re-runs image-gen for that ref only. |
-| *"Slide 4's title is too long; tighten it."* | Edits `slides.md` for that slide. |
+| Pick a specific variant | Updates `selections.yaml`. |
+| Reject all variants for one image | Edits that image's brief in `images.yaml`, regenerates *just that one*. |
+| Tweak slide text | Edits `slides.yaml`, rebuilds the draft (no image regen needed). |
 
-Loop step 3+4 until you're happy.
+Loop until you're happy. Selections persist across rebuilds — unchanged
+slides keep their pick.
 
-### Step 5 — Build the final deck
-> *"Build final."*
+### 6. The final deck
 
-    forge build <folder>
+You ask the agent to build final.
 
-Renders **`final.pptx`** with the selected variants composed onto your
-corporate template (the `.potx`/`.pptx` you set in `theme.yaml`'s
-`template:` key). Layouts, masters, fonts, colors are all inherited —
-the deck looks native to the template.
+`build/final.pptx` is rendered with the picked variant per slide,
+composed onto your corporate template. Layouts, masters, fonts, colors,
+decorative shapes — all inherited from the template. The deck looks
+native to your brand.
 
-Editing any spec file and rebuilding is **non-destructive** for image
-selections — `selections.json` survives.
+If you have `final.pptx` already open in PowerPoint, the agent writes
+to `final-updated.pptx` instead so nothing is lost.
 
----
+## What lives in each file
 
-## Installing the skills
+```
+my-talk/
+  story.md          # the narrative, in prose
+  slides.yaml       # ordered slides: layout, title, bullets, image_ref, notes
+  images.yaml       # image briefs: house style + per-image + variations
+  theme.yaml        # which corporate template + brand tokens to use
+  selections.yaml   # your picked variant per slide
+  build/
+    images/         # generated images (cached)
+    draft.pptx      # all variants — for review
+    final.pptx      # the deck you present
+```
 
-Using the GitHub CLI (preview):
+Everything except `build/` is text you can read, version-control, and
+hand off. The agent is the one that *writes* these files, but you can
+always open them and read what's there.
 
-    gh skill install tkubica12/presentation-forge image-generator
-    gh skill install tkubica12/presentation-forge presentation-forge
-    gh skill install tkubica12/presentation-forge pptx-render
-
-Or clone and run from this checkout — each skill is a standalone uv
-project under `skills/<skill>/`. See each skill's `SKILL.md` for usage.
-
-## Local development
-
-Each skill is independent:
-
-    cd skills/image-generator    && uv sync
-    cd skills/presentation-forge && uv sync
-    cd skills/pptx-render        && uv sync
-
-Run a smoke test of the example talk (no Azure required when
-`--skip-images` is passed):
-
-    cd skills/presentation-forge
-    uv run forge validate ./assets/examples/example-talk
-    uv run forge build    ./assets/examples/example-talk --skip-images
-    uv run pytest
-
-For full image generation, set up `.env` per
-`skills/image-generator/SKILL.md` and drop `--skip-images`.
-
-## Using a corporate template
+## Using your corporate template
 
 Drop a `.potx` or `.pptx` template anywhere on disk (we suggest
-`.templates/` — it's gitignored), then point `theme.yaml` at it:
+`.templates/` — gitignored) and tell the agent. It records the path
+plus layout-name mappings in `theme.yaml`:
 
 ```yaml
 template: ../../path/to/your-corporate-template.potx
 layouts:
-  title: "Title Slide 1"
+  cover: "Title Slide 1"
   bullets: "Title and Content"
   quote: "Quote"
   full-bleed-image: "Photo full bleed lower title"
-  # ... map every layout you use to a layout name in the template
+  # ... one entry per layout you use
 metadata:
   author: "you@company.com"
 ```
 
-Layout names must match exactly (open the template in PowerPoint → View
-→ Slide Master to discover them). The renderer inherits all template
-masters, layouts, fonts, colors, and decorative shapes.
+Layout names must match what's in the template (open it in PowerPoint →
+View → Slide Master to see them). The agent will help you map them.
+
+## A few principles worth knowing
+
+- **The PPTX is disposable.** If you hand-edit `final.pptx`, your edits
+  are lost on next build. Tell the agent to change the spec instead.
+- **Slide IDs are stable.** Don't ask the agent to rename a slide-id;
+  selections are keyed by it. Edit the *content* of a slide freely.
+- **Iterate cheaply.** Tweaking text doesn't re-run image generation.
+  Tweaking one image doesn't re-run the others. The agent has commands
+  for both.
+- **Be opinionated about house style.** Vague briefs in `images.yaml`
+  produce vague images. Spend time on `common_requirements`.
 
 ## License
 
 MIT — see [`LICENSE`](./LICENSE).
 
 The `pptx-render` skill is a verbatim vendored copy of
-[`microsoft/hve-core`](https://github.com/microsoft/hve-core) (also MIT,
-© Microsoft Corporation) — see `skills/pptx-render/NOTICE` and
+[`microsoft/hve-core`](https://github.com/microsoft/hve-core) (also
+MIT, © Microsoft Corporation) — see `skills/pptx-render/NOTICE` and
 `skills/pptx-render/LICENSE-microsoft` for provenance.
 
-> Note: this repo does **not** vendor Anthropic's `pptx` skill. That
-> skill's license forbids redistribution outside Anthropic's services.
+> This repo does **not** vendor Anthropic's `pptx` skill. That skill's
+> license forbids redistribution outside Anthropic's services.
