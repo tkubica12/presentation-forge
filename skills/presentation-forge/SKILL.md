@@ -99,14 +99,16 @@ For every `image_ref` used by a slide, define an entry with:
 - **common_requirements** at the top of the file — a "system prompt"
   for visual style (palette, mood, framing). Treat as opinionated.
 - **per-image `description`** — what this specific image shows.
-- **variations** — 2–4 variants per image so the user can pick. The
-  generator fans these out across configured models × instances.
+- **variations** — usually 4–8 variants per image so the user can pick.
+  Default backend is `gpt-image-2`; for presentation work prefer
+  `size: 3840x2160` in `images.yaml` unless the image is intentionally
+  square (`2048x2048`).
 
 Schema is the same one image-generator consumes — see
 [`../image-generator/references/YAML_SCHEMA.md`](../image-generator/references/YAML_SCHEMA.md).
 
-Cap renders per batch (~30) before confirming cost. A 10-slide deck × 4
-variations × 2 instances × 2 models = 160 images.
+Cap renders per batch (~30) before confirming cost. With the new defaults,
+a 10-slide deck × 8 variations × 1 instance × 1 model = 80 images.
 
 ### 4. Validate + draft
 

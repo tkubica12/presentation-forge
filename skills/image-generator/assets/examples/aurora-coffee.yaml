@@ -1,40 +1,36 @@
-# Common requirements baked into every prompt for every image.
 common_requirements: |
-  Brand: "Aurora Coffee Co.". Lifestyle product photography for an e-commerce
-  hero. Always include the matte-black Aurora ceramic mug clearly visible,
-  steam gently rising. Warm, inviting mood, shallow depth of field, no text or
-  logos rendered in the image.
+  Aurora Coffee editorial photography. Warm natural light, tactile ceramic
+  surfaces, shallow depth of field, realistic steam, premium but human mood.
+  Photorealistic, magazine-quality, color-accurate. Do not invent extra text.
 
-# Optional: how prompt variations should differ. If omitted, sensible defaults
-# (lighting, angle, lens, props) are used.
 variations_description: |
-  Each variation should explore a distinct setting (urban café, sunlit kitchen,
-  rainy window, forest cabin, library nook), a different time of day and
-  lighting mood, and pair the mug with a complementary prop appropriate to the
-  scene.
+  Explore distinct settings, camera distances, and prop combinations while
+  keeping the Aurora identity coherent. When an input logo is provided, keep it
+  recognizable and cleanly integrated rather than stylized beyond recognition.
 
-variations_count: 4
-instances_per_prompt: 2
+variations_count: 8
+instances_per_prompt: 1
 parallelism: 24
 parallelism_per_model: 12
-size: 1024x1024
+size: "2048x2048"
 quality: high
 output_dir: ./output
 
-# Both models will run for every prompt+instance combo.
-# Note: MAI-Image-2 does NOT accept input images and is skipped automatically
-# when an input_image is provided.
 models:
-  - MAI-Image-2
-  - gpt-image-1.5
+  - gpt-image-2
 
 images:
-  - name: morning-ritual
-    description: >
-      The Aurora ceramic mug filled with freshly poured espresso, sitting on a
-      reclaimed-oak countertop next to an open notebook and a fountain pen.
-  - name: afternoon-pause
-    description: >
-      The Aurora ceramic mug filled with a frothy cappuccino, set on a marble
-      side table next to a half-read paperback novel and a pair of reading
-      glasses.
+  - name: signature-mug
+    input_image: ./aurora-logo.jpg
+    description: |
+      A hero product shot of a matte-black ceramic coffee mug in a cozy cafe.
+      The provided Aurora logo is printed cleanly on the front of the mug. Warm
+      morning light from the side, subtle steam, wooden table, premium but
+      natural atmosphere.
+  - name: cafe-hero
+    size: "3840x2160"
+    description: |
+      Wide 16:9 hero scene inside a small independent coffee shop. A barista
+      works behind the counter while the Aurora mug sits prominently in the
+      foreground near a pastry and a glass of sparkling water. Inviting, warm,
+      cinematic, presentation-ready.

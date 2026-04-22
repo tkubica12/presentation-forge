@@ -307,7 +307,7 @@ def images_status(pres: Presentation) -> list[dict]:
     """Per-image_ref status: expected variants × instances vs PNGs found."""
     yaml_data = pres.images_yaml_data
     var_count = int(yaml_data.get("variations_count")
-                    or yaml_data.get("variations_per_image") or 4)
+                    or yaml_data.get("variations_per_image") or 8)
     inst_count = int(yaml_data.get("instances_per_prompt")
                      or yaml_data.get("instances_per_variation") or 1)
     rows: list[dict] = []

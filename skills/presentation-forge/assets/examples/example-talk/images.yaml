@@ -6,9 +6,9 @@ common_requirements: |
 variations_description: |
   Vary the camera angle, time of day within the morning hours,
   and secondary props while preserving the warm editorial mood.
-variations_count: 2
+variations_count: 8
 instances_per_prompt: 1
-size: "1024x1024"
+size: "3840x2160"
 images:
   - name: morning-ritual
     size: "1536x1024"

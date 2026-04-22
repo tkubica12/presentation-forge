@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="generate-images",
         description=(
             "Generate batches of photorealistic image variations against "
-            "Microsoft Foundry (MAI-Image-2 + gpt-image-1.5)."
+            "Microsoft Foundry (GPT Image 2 by default; MAI / GPT Image 1.x optional)."
         ),
     )
     parser.add_argument("config", help="Path to a YAML job definition")

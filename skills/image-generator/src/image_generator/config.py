@@ -7,14 +7,14 @@ from typing import Optional
 
 import yaml
 
-DEFAULT_VARIATIONS = 4
-DEFAULT_INSTANCES = 2
+DEFAULT_VARIATIONS = 8
+DEFAULT_INSTANCES = 1
 DEFAULT_PARALLELISM = 24
 DEFAULT_PARALLELISM_PER_MODEL = 12
 DEFAULT_OUTPUT_DIR = "./output"
-DEFAULT_SIZE = "1024x1024"
+DEFAULT_SIZE = "2048x2048"
 DEFAULT_QUALITY = "high"
-DEFAULT_MODELS = ["MAI-Image-2", "gpt-image-1.5"]
+DEFAULT_MODELS = ["gpt-image-2"]
 DEFAULT_PROMPT_MODEL = "gpt-5.4"
 
 
@@ -23,6 +23,7 @@ class ImageSpec:
     name: str
     description: str
     size: Optional[str] = None  # per-image size override (e.g., "1536x1024")
+    input_image: Optional[str] = None  # optional per-image reference image
 
 
 @dataclass
@@ -47,9 +48,11 @@ class JobConfig:
 
     @staticmethod
     def from_yaml(path: str | Path) -> "JobConfig":
-        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        path = Path(path)
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise ValueError(f"YAML root must be a mapping in {path}")
+        base_dir = path.resolve().parent
         images_raw = data.get("images") or []
         if not images_raw:
             raise ValueError("YAML must contain non-empty 'images' list")
@@ -58,6 +61,7 @@ class JobConfig:
                 name=str(i["name"]),
                 description=str(i["description"]),
                 size=i.get("size"),
+                input_image=_resolve_optional_path(i.get("input_image"), base_dir),
             )
             for i in images_raw
         ]
@@ -67,4 +71,15 @@ class JobConfig:
         # Drop unknown keys gracefully
         allowed = set(JobConfig.__dataclass_fields__.keys())
         kwargs = {k: v for k, v in kwargs.items() if k in allowed}
+        if "input_image" in kwargs:
+            kwargs["input_image"] = _resolve_optional_path(kwargs["input_image"], base_dir)
         return JobConfig(**kwargs)
+
+
+def _resolve_optional_path(value: object, base_dir: Path) -> Optional[str]:
+    if value in (None, ""):
+        return None
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = (base_dir / path).resolve()
+    return str(path)

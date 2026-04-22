@@ -77,14 +77,16 @@ For every `image_ref` used in `slides.yaml`:
   `story.md`. Treat it as a system prompt for the visual house style.
 - Pick `variations_count` based on importance: hero shots get 4–8,
   supporting images 2–4.
-- Decide `models`: typically both `MAI-Image-2` and `gpt-image-1.5`
-  unless the user has a strong preference.
+- Default `models` to `gpt-image-2`. Only opt into legacy MAI /
+  GPT-image-1.x if the user explicitly wants them.
+- For presentation work, default image `size` to `3840x2160` (exact
+  16:9). Use `2048x2048` only when the image should be square.
 
 Schema reference:
 [`../../image-generator/references/YAML_SCHEMA.md`](../../image-generator/references/YAML_SCHEMA.md).
 
 Cap renders per batch (~30) before confirming cost: a 10-slide deck ×
-4 variations × 2 instances × 2 models = 160 images.
+8 variations × 1 instance × 1 model = 80 images.
 
 ## Phase 4 — Theme (`theme.yaml`)
 

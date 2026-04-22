@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -38,6 +39,7 @@ class Task:
     prompt: str
     output_path: Path
     size: str  # resolved per-image or global size
+    input_image_prepared: Optional[Path]
 
 
 def _output_path(
@@ -110,7 +112,10 @@ async def _build_or_load_prompts(
 
 
 def _build_tasks(
-    cfg: JobConfig, prompts: dict[str, list[str]], out_dir: Path
+    cfg: JobConfig,
+    prompts: dict[str, list[str]],
+    out_dir: Path,
+    prepared_inputs: dict[str, Optional[Path]],
 ) -> list[Task]:
     tasks: list[Task] = []
     for image in cfg.images:
@@ -129,6 +134,7 @@ def _build_tasks(
                                 out_dir, image.name, model, v_idx, i_idx
                             ),
                             size=resolved_size,
+                            input_image_prepared=prepared_inputs.get(image.name),
                         )
                     )
     return tasks
@@ -140,7 +146,6 @@ async def _run_task(
     cfg: JobConfig,
     endpoint: str,
     token_cache: TokenCache,
-    input_image_prepared: Optional[Path],
     client: httpx.AsyncClient,
     global_sem: asyncio.Semaphore,
     model_sems: dict[str, asyncio.Semaphore],
@@ -156,7 +161,7 @@ async def _run_task(
     async with model_sem, global_sem:
         try:
             if task.model.lower().startswith("mai"):
-                if input_image_prepared is not None:
+                if task.input_image_prepared is not None:
                     log.info(
                         "Skipping %s — MAI does not accept input images",
                         task.output_path,
@@ -179,7 +184,7 @@ async def _run_task(
                     prompt=task.prompt,
                     size=task.size,
                     quality=cfg.quality,
-                    input_image_path=input_image_prepared,
+                    input_image_path=task.input_image_prepared,
                     client=client,
                 )
             task.output_path.write_bytes(png)
@@ -218,14 +223,24 @@ async def run_job(cfg: JobConfig, *, endpoint: str) -> dict:
     out_dir = Path(cfg.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    input_image_prepared: Optional[Path] = None
-    if cfg.input_image:
-        src = Path(cfg.input_image)
+    prepared_inputs: dict[str, Optional[Path]] = {}
+    prepared_cache: dict[str, Path] = {}
+    for image in cfg.images:
+        raw_input = image.input_image or cfg.input_image
+        if not raw_input:
+            prepared_inputs[image.name] = None
+            continue
+        src = Path(raw_input)
         if not src.exists():
             raise FileNotFoundError(f"input_image not found: {src}")
-        input_image_prepared = prepare_input_image(
-            src, dst=out_dir / ".cache" / f"{_slug(src.stem)}.png"
-        )
+        cache_key = str(src.resolve())
+        if cache_key not in prepared_cache:
+            suffix = hashlib.sha1(cache_key.encode("utf-8")).hexdigest()[:8]
+            prepared_cache[cache_key] = prepare_input_image(
+                src,
+                dst=out_dir / ".cache" / f"{_slug(src.stem)}-{suffix}.png",
+            )
+        prepared_inputs[image.name] = prepared_cache[cache_key]
 
     token_cache = TokenCache()
     timeout = httpx.Timeout(300.0, connect=30.0)
@@ -239,7 +254,7 @@ async def run_job(cfg: JobConfig, *, endpoint: str) -> dict:
             client=client,
             out_dir=out_dir,
         )
-        tasks = _build_tasks(cfg, prompts, out_dir)
+        tasks = _build_tasks(cfg, prompts, out_dir, prepared_inputs)
         per_model = max(1, cfg.parallelism_per_model)
         log.info(
             "Planning %d images (%d images × %d variations × %d instances × %d models); "
@@ -262,7 +277,6 @@ async def run_job(cfg: JobConfig, *, endpoint: str) -> dict:
                     cfg=cfg,
                     endpoint=endpoint,
                     token_cache=token_cache,
-                    input_image_prepared=input_image_prepared,
                     client=client,
                     global_sem=global_sem,
                     model_sems=model_sems,

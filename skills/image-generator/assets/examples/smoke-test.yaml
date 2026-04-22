@@ -5,13 +5,12 @@ common_requirements: |
 variations_count: 1
 instances_per_prompt: 1
 parallelism: 4
-size: 1024x1024
+size: 2048x2048
 quality: medium
 output_dir: ./output-smoke
 
 models:
-  - MAI-Image-2
-  - gpt-image-1.5
+  - gpt-image-2
 
 images:
   - name: red-apple

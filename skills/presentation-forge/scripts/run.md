@@ -16,10 +16,10 @@ uv --directory <skill-dir> run forge images (Resolve-Path .\my-talk)
 # Build PPTX(s) — default is both draft + final
 uv --directory <skill-dir> run forge build (Resolve-Path .\my-talk)
 uv --directory <skill-dir> run forge build (Resolve-Path .\my-talk) --draft
-uv --directory <skill-dir> run forge build (Resolve-Path .\my-talk) --final
+uv --directory <skill-dir> run forge build (Resolve-Path .\my-talk) --no-draft
 
 # Update a per-slide selection
-uv --directory <skill-dir> run forge select (Resolve-Path .\my-talk) hero gpt-image-1.5 2 0
+uv --directory <skill-dir> run forge select (Resolve-Path .\my-talk) hero gpt-image-2 2 0
 
 # Per-slide status table
 uv --directory <skill-dir> run forge status (Resolve-Path .\my-talk)

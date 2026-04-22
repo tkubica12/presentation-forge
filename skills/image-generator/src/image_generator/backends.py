@@ -1,4 +1,4 @@
-"""Image generation backends for MAI-Image-2 and gpt-image-1.5."""
+"""Image generation backends for GPT Image 2 plus legacy MAI / GPT Image 1.x."""
 from __future__ import annotations
 
 import asyncio
@@ -22,7 +22,10 @@ GPT_IMAGE_API_VERSION = "2025-04-01-preview"
 # Limits
 MAI_MIN_DIM = 768
 MAI_MAX_TOTAL_PIXELS = 1024 * 1024  # 1,048,576
-GPT_IMAGE_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024", "auto"}
+GPT_IMAGE_LEGACY_ALLOWED_SIZES = {"1024x1024", "1024x1536", "1536x1024", "auto"}
+GPT_IMAGE_2_MIN_TOTAL_PIXELS = 655_360
+GPT_IMAGE_2_MAX_TOTAL_PIXELS = 8_294_400
+GPT_IMAGE_2_ALIGNMENT = 16
 
 # Retry policy
 MAX_ATTEMPTS = 8
@@ -66,14 +69,74 @@ def _clamp_mai_size(size: str) -> tuple[int, int]:
     return w, h
 
 
-def _normalize_gpt_size(size: str) -> str:
+def _snap_to_multiple(value: int, step: int) -> int:
+    return max(step, int(round(value / step)) * step)
+
+
+def _fit_pixel_budget(
+    width: int,
+    height: int,
+    *,
+    min_pixels: int,
+    max_pixels: int,
+    alignment: int,
+) -> tuple[int, int]:
+    total = width * height
+    if total == 0:
+        raise ValueError("Image size must be non-zero")
+    if total > max_pixels:
+        scale = (max_pixels / total) ** 0.5
+        width = _snap_to_multiple(int(width * scale), alignment)
+        height = _snap_to_multiple(int(height * scale), alignment)
+    elif total < min_pixels:
+        scale = (min_pixels / total) ** 0.5
+        width = _snap_to_multiple(int(width * scale), alignment)
+        height = _snap_to_multiple(int(height * scale), alignment)
+
+    while width * height > max_pixels:
+        if width >= height:
+            width -= alignment
+        else:
+            height -= alignment
+    while width * height < min_pixels:
+        if width <= height:
+            width += alignment
+        else:
+            height += alignment
+    return width, height
+
+
+def _normalize_gpt_image_2_size(size: str) -> str:
     size = size.lower()
-    if size in GPT_IMAGE_ALLOWED_SIZES:
+    if size == "auto":
+        return size
+    width, height = _parse_size(size)
+    width = _snap_to_multiple(width, GPT_IMAGE_2_ALIGNMENT)
+    height = _snap_to_multiple(height, GPT_IMAGE_2_ALIGNMENT)
+    width, height = _fit_pixel_budget(
+        width,
+        height,
+        min_pixels=GPT_IMAGE_2_MIN_TOTAL_PIXELS,
+        max_pixels=GPT_IMAGE_2_MAX_TOTAL_PIXELS,
+        alignment=GPT_IMAGE_2_ALIGNMENT,
+    )
+    return f"{width}x{height}"
+
+
+def _normalize_gpt_legacy_size(size: str) -> str:
+    size = size.lower()
+    if size in GPT_IMAGE_LEGACY_ALLOWED_SIZES:
         return size
     w, h = _parse_size(size)
     if w == h:
         return "1024x1024"
     return "1536x1024" if w > h else "1024x1536"
+
+
+def _normalize_gpt_size(size: str, deployment: str) -> str:
+    if "gpt-image-2" in deployment.lower():
+        return _normalize_gpt_image_2_size(size)
+    return _normalize_gpt_legacy_size(size)
 
 
 def _parse_retry_after(value: Optional[str]) -> Optional[float]:
@@ -175,7 +238,7 @@ async def generate_mai_image(
     return _extract_b64(resp.json())
 
 
-# --------------------------- gpt-image-1.5 -----------------------------------
+# --------------------------- GPT Image ---------------------------------------
 
 async def generate_gpt_image(
     *,
@@ -188,7 +251,7 @@ async def generate_gpt_image(
     input_image_path: Optional[Path],
     client: httpx.AsyncClient,
 ) -> bytes:
-    norm_size = _normalize_gpt_size(size)
+    norm_size = _normalize_gpt_size(size, deployment)
     base = f"{endpoint.rstrip('/')}/openai/deployments/{deployment}/images"
     params = f"?api-version={GPT_IMAGE_API_VERSION}"
     image_bytes = input_image_path.read_bytes() if input_image_path else None
@@ -244,11 +307,11 @@ def _extract_b64(data: dict) -> bytes:
 
 
 def prepare_input_image(
-    src: Path, *, max_dim: int = 1536, dst: Optional[Path] = None
+    src: Path, *, max_dim: int = 2048, dst: Optional[Path] = None
 ) -> Path:
     """Resize the input image so the longest edge <= max_dim and re-save as PNG.
 
-    gpt-image-1.5 /images/edits accepts PNG/JPEG up to 25 MB; resizing keeps
+    GPT Image edit requests accept PNG/JPEG up to 50 MB; resizing keeps
     upload fast and avoids out-of-bound dimensions. Returned path is what
     callers should pass to :func:`generate_gpt_image`.
     """

@@ -1,11 +1,11 @@
 title: null
 hero:
-  model: gpt-image-1.5
+  model: gpt-image-2
   variation: 0
   instance: 0
 pillars: null
 brand-feel:
-  model: gpt-image-1.5
+  model: gpt-image-2
   variation: 0
   instance: 0
 strategy: null
@@ -15,15 +15,15 @@ pour-over:
   instance: 0
 founders-words: null
 gallery:
-  model: gpt-image-1.5
+  model: gpt-image-2
   variation: 0
   instance: 0
 latte-art:
-  model: gpt-image-1.5
+  model: gpt-image-2
   variation: 0
   instance: 0
 bean-comparison:
-  model: gpt-image-1.5
+  model: gpt-image-2
   variation: 0
   instance: 0
 closing: null
