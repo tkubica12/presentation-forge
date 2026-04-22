@@ -56,10 +56,19 @@ the user is happy before moving on.
 
 ### 1. Narrative — `story.md`
 
-Co-author the story first, in plain markdown. Ask the user:
+Co-author the story first, in plain markdown. The scaffold has section
+headings: **Audience**, **Goal**, **Narrative arc** (Hook → Tension →
+Insight → Resolution → Call to action), **Key messages**, **References**,
+and an optional **Localization** section.
+
+Ask the user:
 - Who is the audience and what's the takeaway in one sentence?
 - 3–5 supporting beats?
 - Any sources / URLs to ground in?
+- Will the slides be presented in a different language than this file?
+  If yes, fill in `## Localization`: target language, tone, terms to
+  keep untranslated, translation philosophy. The agent reads it when
+  producing slides, image briefs, and speaker notes.
 
 Scaffold the folder once the story is roughly there:
 

@@ -49,6 +49,13 @@ clarifying questions and writes a tight prose narrative.
 beats that carry it, the call to action, any sources to ground in.
 You're done when you can read it aloud and it flows.
 
+**Multilingual tip.** If the slides will be presented in a different
+language than `story.md` itself, fill in the `## Localization` section
+the scaffold provides — target language, tone, terms to keep
+untranslated, translation philosophy, phrasing preferences. Keep
+`story.md` in whatever language is most comfortable for you to edit
+(usually English) and let this section steer the slide output.
+
 ### 2. The slide structure — `slides.yaml`
 
 You ask the agent to turn the story into slides. Together you decide,
