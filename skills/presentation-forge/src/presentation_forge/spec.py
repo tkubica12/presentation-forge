@@ -11,6 +11,13 @@ import yaml
 from .slides_parser import Slide, parse_slides_md, parse_slides_yaml
 
 
+def _resolve_user_path(base: Path, value: object) -> Path | None:
+    if value in (None, ""):
+        return None
+    text = str(value).replace("\\", "/")
+    return (base / Path(text)).resolve()
+
+
 @dataclass
 class Theme:
     template: Path | None = None
@@ -54,10 +61,10 @@ class Theme:
         if not isinstance(bg_raw, dict):
             raise ValueError("theme.yaml: `layout_backgrounds` must be a mapping")
         return cls(
-            template=(base / tpl).resolve() if tpl else None,
+            template=_resolve_user_path(base, tpl),
             fonts=dict(data.get("fonts") or {}),
             colors=dict(data.get("colors") or {}),
-            logo=(base / logo).resolve() if logo else None,
+            logo=_resolve_user_path(base, logo),
             layouts=layouts,
             metadata={str(k): str(v) for k, v in metadata_raw.items()},
             defaults=dict(defaults_raw),

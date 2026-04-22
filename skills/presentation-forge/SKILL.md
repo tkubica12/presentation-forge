@@ -23,20 +23,29 @@ collaboratively (narrative → slides → AI images → final deck).
 
 ## Folder layout
 
-```
-my-talk/
-  story.md          # free-form narrative, audience, goals, references
-  slides.yaml       # ordered slides (stable slide-ids + layout + content)
-  images.yaml       # image briefs (consumed by image-generator skill)
-  theme.yaml        # template.pptx path + brand tokens
-  selections.yaml   # per-slide chosen image variant (state)
-  build/
-    images/         # generated PNGs (cached, idempotent)
-    draft.pptx      # every variation as alternate slides — for review
-    final.pptx      # one image per slide based on selections.yaml
+```text
+talks/
+  my-talk/
+    story.md          # free-form narrative, audience, goals, references
+    slides.yaml       # ordered slides (stable slide-ids + layout + content)
+    images.yaml       # image briefs (consumed by image-generator skill)
+    theme.yaml        # template path + brand tokens
+    selections.yaml   # per-slide chosen image variant (state)
+    build/
+      images/         # generated PNGs (cached, idempotent)
+      draft.pptx      # every variation as alternate slides — for review
+      final.pptx      # one image per slide based on selections.yaml
 ```
 
 Everything except `build/` is human-edited and committed.
+
+Recommended shared-repo layout:
+
+- `talks/` — reusable talk blueprints
+- `deliveries/` — concrete event / customer / internal decks
+- `pptx-assets/design-templates/` — corporate `.potx` / `.pptx` templates
+- `pptx-assets/slide-libraries/` — reserved for future reusable source slides
+- `pptx-assets/brand-assets/` — logos, icons, and source graphics
 
 ## Setup (once per machine)
 
@@ -73,7 +82,7 @@ Ask the user:
 Scaffold the folder once the story is roughly there:
 
 ```powershell
-forge new <parent-dir> my-talk
+forge new talks my-talk
 ```
 
 ### 2. Slide structure — `slides.yaml`

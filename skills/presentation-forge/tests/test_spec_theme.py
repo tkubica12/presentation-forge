@@ -67,3 +67,24 @@ def test_defaults_must_be_mapping(tmp_path):
 def test_metadata_values_coerced_to_string(tmp_path):
     t = Theme.from_dict({"metadata": {"foo": 42, "bar": True}}, tmp_path)
     assert t.metadata == {"foo": "42", "bar": "True"}
+
+
+def test_theme_paths_accept_windows_style_backslashes(tmp_path):
+    (tmp_path / "pptx-assets" / "design-templates").mkdir(parents=True)
+    (tmp_path / "pptx-assets" / "design-templates" / "brand.potx").write_text("x")
+    (tmp_path / "pptx-assets" / "brand-assets").mkdir(parents=True)
+    (tmp_path / "pptx-assets" / "brand-assets" / "logo.png").write_text("x")
+
+    deck = tmp_path / "talks" / "demo"
+    deck.mkdir(parents=True)
+
+    t = Theme.from_dict(
+        {
+            "template": r"..\..\pptx-assets\design-templates\brand.potx",
+            "logo": r"..\..\pptx-assets\brand-assets\logo.png",
+        },
+        deck,
+    )
+
+    assert t.template == (tmp_path / "pptx-assets" / "design-templates" / "brand.potx").resolve()
+    assert t.logo == (tmp_path / "pptx-assets" / "brand-assets" / "logo.png").resolve()

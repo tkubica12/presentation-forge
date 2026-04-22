@@ -31,6 +31,45 @@ gh skill install tkubica12/presentation-forge pptx-render
 Image generation needs Azure AI Foundry credentials — the
 `image-generator` skill walks you through `.env` setup.
 
+## Recommended repository structure
+
+For a shared presentation repo, we recommend separating **reusable talk
+blueprints**, **concrete deliveries**, and **visual assets**:
+
+```text
+repo/
+  talks/
+    <talk-name>/
+      story.md
+      slides.yaml
+      images.yaml
+      theme.yaml
+      selections.yaml
+      build/
+  deliveries/
+    <delivery-name>/
+      story.md
+      slides.yaml
+      images.yaml
+      theme.yaml
+      selections.yaml
+      build/
+  pptx-assets/
+    design-templates/
+      <template>.potx
+    slide-libraries/   # reserved for future reuse/import workflows
+    brand-assets/
+      <logos, icons, source graphics>
+```
+
+- Use **`talks/`** for reusable source talks you expect to adapt many times.
+- Use **`deliveries/`** for customer, event, or internal one-off decks derived
+  from a talk or created for one situation.
+- Use **`pptx-assets/design-templates/`** for corporate `.potx` / `.pptx`
+  templates.
+- Keep **`pptx-assets/slide-libraries/`** in the repo layout now even though
+  slide import/reuse is not implemented yet.
+
 ## How a deck gets built — the conversation flow
 
 Each step is a chat with the agent. Each step ends with a file you and
@@ -104,7 +143,7 @@ You walk through the draft and tell the agent which variant you want
 per slide. Easiest way: copy the variant label from the draft slide and
 paste it into chat.
 
-> *"For 'hero', take the gpt-image-1 v02 i01 variant."*
+> *"For 'hero', take the gpt-image-2 v02 i00 variant."*
 > *"For 'pour-over', none of these work — make it warmer, top-down, less
 > clinical, and regenerate."*
 > *"Slide 4's title is too long — tighten it."*
@@ -134,17 +173,18 @@ to `final-updated.pptx` instead so nothing is lost.
 
 ## What lives in each file
 
-```
-my-talk/
-  story.md          # the narrative, in prose
-  slides.yaml       # ordered slides: layout, title, bullets, image_ref, notes
-  images.yaml       # image briefs: house style + per-image + variations
-  theme.yaml        # which corporate template + brand tokens to use
-  selections.yaml   # your picked variant per slide
-  build/
-    images/         # generated images (cached)
-    draft.pptx      # all variants — for review
-    final.pptx      # the deck you present
+```text
+talks/
+  my-talk/
+    story.md          # the narrative, in prose
+    slides.yaml       # ordered slides: layout, title, bullets, image_ref, notes
+    images.yaml       # image briefs: house style + per-image + variations
+    theme.yaml        # which corporate template + brand tokens to use
+    selections.yaml   # your picked variant per slide
+    build/
+      images/         # generated images (cached)
+      draft.pptx      # all variants — for review
+      final.pptx      # the deck you present
 ```
 
 Everything except `build/` is text you can read, version-control, and
@@ -176,10 +216,10 @@ looks native to your brand.
 
 ### Where to put the template
 
-Drop the `.potx` or `.pptx` anywhere on disk. We suggest a `.templates/`
-folder at the repo root — it's gitignored, which keeps brand assets out
-of source control. Both `.potx` (PowerPoint template) and `.pptx`
-(regular presentation) work; `.potx` is normalized internally before use.
+Drop the `.potx` or `.pptx` anywhere on disk. For a shared presentation
+repo, we suggest **`pptx-assets/design-templates/`**. Both `.potx`
+(PowerPoint template) and `.pptx` (regular presentation) work; `.potx`
+is normalized internally before use.
 
 ### Telling the agent about it
 
@@ -189,7 +229,13 @@ help you discover the names (open the template in PowerPoint → View →
 Slide Master, or ask the agent to inspect it):
 
 ```yaml
-template: ../../.templates/your-corporate-template.potx
+template: ../../pptx-assets/design-templates/your-corporate-template.potx
+```
+
+If you prefer Windows-style separators, this works too:
+
+```yaml
+template: ..\..\pptx-assets\design-templates\your-corporate-template.potx
 
 layouts:
   cover:              "Title Slide 1"
@@ -209,7 +255,8 @@ metadata:
 You only need to map the layouts your deck actually uses. The
 left-hand side is our fixed vocabulary (`cover`, `bullets`, `quote`,
 …); the right-hand side is the **exact** layout name as it appears in
-your template — names must match character-for-character.
+your template — names must match character-for-character. Both `/` and
+`\` work in `theme.yaml` paths on Windows.
 
 ### What if I don't supply a template
 

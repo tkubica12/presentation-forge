@@ -16,7 +16,10 @@ The five artifacts:
 | `selections.yaml`| 6 | User's chosen variant per image-bearing slide. |
 
 `forge new <parent> <name>` scaffolds all five from templates so the
-agent can co-author them in turn rather than start from scratch.
+agent can co-author them in turn rather than start from scratch. In a
+shared presentation repo, use `talks/` for reusable blueprints and
+`deliveries/` for concrete decks; keep templates in
+`pptx-assets/design-templates/`.
 
 ## Phase 1 — Story (`story.md`)
 
@@ -90,11 +93,12 @@ Cap renders per batch (~30) before confirming cost: a 10-slide deck ×
 
 ## Phase 4 — Theme (`theme.yaml`)
 
-Point at the user's corporate `.potx`/`.pptx` template (drop in
-`.templates/`, gitignored) and map our logical layout names to the
-exact layout names that exist in that template. Only map layouts the
-deck actually uses. See the README's "Using your corporate template"
-section for the why.
+Point at the user's corporate `.potx`/`.pptx` template (recommended:
+`pptx-assets/design-templates/`) and map our logical layout names to
+the exact layout names that exist in that template. Only map layouts
+the deck actually uses. `theme.yaml` paths may use either `/` or `\`
+on Windows. See the README's "Using your corporate template" section
+for the why.
 
 ## Phase 5 — First build
 
